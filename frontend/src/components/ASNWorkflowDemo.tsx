@@ -1,417 +1,502 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-material.css';
 import {
   Box,
   Typography,
-  Stepper,
-  Step,
-  StepLabel,
   Button,
   Card,
   CardContent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
-  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   TextField,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Alert
+  Alert,
+  Chip
 } from '@mui/material';
+import { Add, Edit, Delete, Visibility } from '@mui/icons-material';
+
+// Simple interfaces for ASN
+interface ASN {
+  ID: number;
+  ASN_CODE: string;
+  ASN_STATUS: 'DRAFT' | 'PENDING' | 'RECEIVED' | 'COMPLETED' | 'CANCELLED';
+  SUPPLIER: string;
+  PO_NO: string;
+  CREATE_TIME: string;
+  UPDATE_TIME: string;
+}
 
 interface ASNLineItem {
-  id: string;
-  item_code: string;
-  item_description: string;
-  expected_quantity: number;
-  received_quantity: number;
-  remaining_quantity: number;
-  unit_of_measure: string;
-  batch_number?: string;
-  quality_status: 'GOOD' | 'DAMAGED' | 'REJECTED';
-  putaway_location?: string;
-  inventory_status: 'PENDING' | 'COMPLETED';
+  ID?: number;
+  ASN_CODE?: string;
+  ASN_STATUS?: string;
+  SUPPLIER?: string;
+  PO_NO?: string;
+  CREATE_TIME?: string;
+  UPDATE_TIME?: string;
+  GOODS_CODE?: string;
+  GOODS_DESCRIPTION?: string;
+  GOODS_QTY_KG?: number;
+  UOM?: string;
+  BATCH_NUMBER?: string;
+  RECEIVING_LOCATION?: string;
 }
 
-interface ASN {
-  id: string;
-  asn_number: string;
-  supplier_code: string;
-  supplier_name: string;
-  expected_date: string;
-  status: string;
-  line_items: ASNLineItem[];
-}
-
-const ASNWorkflowDemo: React.FC = () => {
-  const [activeStep, setActiveStep] = useState(0);
+const ASNManagement: React.FC = () => {
+  const [asnDialogOpen, setAsnDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedASN, setSelectedASN] = useState<ASN | null>(null);
-  const [receivingData, setReceivingData] = useState<any>({});
-  const [putawayData, setPutawayData] = useState<any>({});
+  const [newASN, setNewASN] = useState<Partial<ASN>>({
+    ASN_STATUS: 'DRAFT',
+    SUPPLIER: '',
+    PO_NO: '',
+  });
 
-  // Sample ASN data
-  const sampleASN: ASN = {
-    id: '1',
-    asn_number: 'ASN-2024-001',
-    supplier_code: 'SUPP001',
-    supplier_name: 'Philippine Medical Supplies Inc.',
-    expected_date: '2024-01-15',
-    status: 'PENDING_RECEIPT',
-    line_items: [
-      {
-        id: '1',
-        item_code: 'PARACETAMOL-500MG',
-        item_description: 'Paracetamol 500mg Tablets',
-        expected_quantity: 1000,
-        received_quantity: 0,
-        remaining_quantity: 1000,
-        unit_of_measure: 'TABLETS',
-        quality_status: 'GOOD',
-        inventory_status: 'PENDING'
-      },
-      {
-        id: '2',
-        item_code: 'AMOXICILLIN-500MG',
-        item_description: 'Amoxicillin 500mg Capsules',
-        expected_quantity: 500,
-        received_quantity: 0,
-        remaining_quantity: 500,
-        unit_of_measure: 'CAPSULES',
-        quality_status: 'GOOD',
-        inventory_status: 'PENDING'
+  // Grid data for spreadsheet-style ASN entry
+  const [gridData, setGridData] = useState<ASNLineItem[]>(
+    Array(20).fill(null).map((_, index) => ({
+      ID: index + 1,
+      ASN_CODE: '',
+      ASN_STATUS: '',
+      SUPPLIER: '',
+      PO_NO: '',
+      CREATE_TIME: '',
+      UPDATE_TIME: '',
+      GOODS_CODE: '',
+      GOODS_DESCRIPTION: '',
+      GOODS_QTY_KG: undefined,
+      UOM: '',
+      BATCH_NUMBER: '',
+      RECEIVING_LOCATION: ''
+    }))
+  );
+
+  // AG Grid column definitions for spreadsheet-style ASN entry
+  const itemColumnDefs = [
+    { 
+      field: 'ID' as keyof ASNLineItem, 
+      headerName: 'ID', 
+      width: 60,
+      editable: true,
+      cellEditor: 'agNumberCellEditor',
+      type: 'numericColumn'
+    },
+    { 
+      field: 'ASN_CODE' as keyof ASNLineItem, 
+      headerName: 'ASN CODE', 
+      width: 120,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'ASN_STATUS' as keyof ASNLineItem, 
+      headerName: 'ASN STATUS', 
+      width: 100,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: {
+        values: ['1', '2', '3', '4', '5']
       }
-    ]
-  };
-
-  React.useEffect(() => {
-    setSelectedASN(sampleASN);
-  }, []);
-
-  const steps = [
-    'ASN Data Entry',
-    'Physical Receiving',
-    'Putaway Process',
-    'Inventory Insertion'
+    },
+    { 
+      field: 'SUPPLIER' as keyof ASNLineItem, 
+      headerName: 'SUPPLIER', 
+      width: 120,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'PO_NO' as keyof ASNLineItem, 
+      headerName: 'PO NO', 
+      width: 100,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'CREATE_TIME' as keyof ASNLineItem, 
+      headerName: 'CREATE TIME', 
+      width: 110,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'UPDATE_TIME' as keyof ASNLineItem, 
+      headerName: 'UPDATE TIME', 
+      width: 110,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'GOODS_CODE' as keyof ASNLineItem, 
+      headerName: 'GOODS CODE', 
+      width: 120,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'GOODS_DESCRIPTION' as keyof ASNLineItem, 
+      headerName: 'GOODS DESCRIPTION', 
+      width: 180,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'GOODS_QTY_KG' as keyof ASNLineItem, 
+      headerName: 'QTY (KG)', 
+      width: 100,
+      editable: true,
+      cellEditor: 'agNumberCellEditor',
+      type: 'numericColumn'
+    },
+    { 
+      field: 'UOM' as keyof ASNLineItem, 
+      headerName: 'UOM', 
+      width: 80,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: {
+        values: ['KG', 'PCS', 'BAG', 'BOX', 'BTL', 'SACK', 'PCK', 'CAN', 'PACK', 'SACHET']
+      }
+    },
+    { 
+      field: 'BATCH_NUMBER' as keyof ASNLineItem, 
+      headerName: 'BATCH NUMBER', 
+      width: 130,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'RECEIVING_LOCATION' as keyof ASNLineItem, 
+      headerName: 'LOCATION', 
+      width: 100,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    }
   ];
 
-  const handleNext = () => {
-    setActiveStep((prevStep) => prevStep + 1);
-  };
-
-  const handleBack = () => {
-    setActiveStep((prevStep) => prevStep - 1);
-  };
-
-  const handleReceiving = (lineItem: ASNLineItem, receivedQty: number) => {
-    if (selectedASN) {
-      const updatedLineItems = selectedASN.line_items.map(item => 
-        item.id === lineItem.id 
-          ? { ...item, received_quantity: receivedQty, remaining_quantity: item.expected_quantity - receivedQty }
-          : item
-      );
-      setSelectedASN({ ...selectedASN, line_items: updatedLineItems });
+  // Sample ASN data
+  const [asnList] = useState<ASN[]>([
+    {
+      ID: 1,
+      ASN_CODE: 'ASN-2024-001',
+      ASN_STATUS: 'PENDING',
+      SUPPLIER: 'Philippine Medical Supplies Inc.',
+      PO_NO: 'PO-2024-001',
+      CREATE_TIME: '2024-01-15 08:30:00',
+      UPDATE_TIME: '2024-01-15 10:45:00'
+    },
+    {
+      ID: 2,
+      ASN_CODE: 'ASN-2024-002',
+      ASN_STATUS: 'COMPLETED',
+      SUPPLIER: 'Healthcare Solutions Corp.',
+      PO_NO: 'PO-2024-002',
+      CREATE_TIME: '2024-01-14 09:15:00',
+      UPDATE_TIME: '2024-01-15 16:20:00'
     }
+  ]);
+
+  const handleCreateNewASN = () => {
+    console.log('Create New ASN Spreadsheet opened!'); // Debug log
+    // Initialize spreadsheet with empty rows
+    setGridData(
+      Array(20).fill(null).map((_, index) => ({
+        ID: index + 1,
+        ASN_CODE: '',
+        ASN_STATUS: '',
+        SUPPLIER: '',
+        PO_NO: '',
+        CREATE_TIME: '',
+        UPDATE_TIME: '',
+        GOODS_CODE: '',
+        GOODS_DESCRIPTION: '',
+        GOODS_QTY_KG: undefined,
+        UOM: '',
+        BATCH_NUMBER: '',
+        RECEIVING_LOCATION: ''
+      }))
+    );
+    setAsnDialogOpen(true);
   };
 
-  const handlePutaway = (lineItemId: string, location: string) => {
-    if (selectedASN) {
-      const updatedLineItems = selectedASN.line_items.map(item => 
-        item.id === lineItemId 
-          ? { ...item, putaway_location: location }
-          : item
-      );
-      setSelectedASN({ ...selectedASN, line_items: updatedLineItems });
-    }
+  const handleAddRows = () => {
+    const currentLength = gridData.length;
+    const newRows = Array(10).fill(null).map((_, index) => ({
+      ID: currentLength + index + 1,
+      ASN_CODE: '',
+      ASN_STATUS: '',
+      SUPPLIER: '',
+      PO_NO: '',
+      CREATE_TIME: '',
+      UPDATE_TIME: '',
+      GOODS_CODE: '',
+      GOODS_DESCRIPTION: '',
+      GOODS_QTY_KG: undefined,
+      UOM: '',
+      BATCH_NUMBER: '',
+      RECEIVING_LOCATION: ''
+    }));
+    setGridData(prev => [...prev, ...newRows]);
   };
 
-  const handleInventoryInsertion = (lineItemId: string) => {
-    if (selectedASN) {
-      const updatedLineItems = selectedASN.line_items.map(item =>
-        item.id === lineItemId 
-          ? { ...item, inventory_status: 'COMPLETED' as const }
-          : item
-      );
-      setSelectedASN({ ...selectedASN, line_items: updatedLineItems });
-    }
+  const onCellValueChanged = useCallback((params: any) => {
+    setGridData(prev => {
+      const updated = [...prev];
+      updated[params.node.rowIndex] = { 
+        ...updated[params.node.rowIndex], 
+        [params.colDef.field]: params.newValue 
+      };
+      return updated;
+    });
+  }, []);
+
+  const handleCloseDialog = () => {
+    setAsnDialogOpen(false);
   };
 
-  const renderStepContent = (step: number) => {
-    if (!selectedASN) return null;
+  const handleSaveASN = () => {
+    const validEntries = gridData.filter(item => 
+      item.ASN_CODE || item.SUPPLIER || item.GOODS_CODE || item.ID
+    );
 
-    switch (step) {
-      case 0:
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                ASN Data Entry Complete
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                <TextField label="ASN Number" value={selectedASN.asn_number} disabled size="small" />
-                <TextField label="Supplier" value={selectedASN.supplier_name} disabled size="small" />
-                <TextField label="Expected Date" value={selectedASN.expected_date} disabled size="small" />
-              </Box>
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item Code</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell align="right">Expected Qty</TableCell>
-                      <TableCell>UOM</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedASN.line_items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.item_code}</TableCell>
-                        <TableCell>{item.item_description}</TableCell>
-                        <TableCell align="right">{item.expected_quantity}</TableCell>
-                        <TableCell>{item.unit_of_measure}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        );
-
-      case 1:
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Physical Receiving
-              </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Update received quantities for each line item
-              </Alert>
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item Code</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell align="right">Expected</TableCell>
-                      <TableCell align="right">Received</TableCell>
-                      <TableCell align="right">Remaining</TableCell>
-                      <TableCell>Quality Status</TableCell>
-                      <TableCell>Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedASN.line_items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.item_code}</TableCell>
-                        <TableCell>{item.item_description}</TableCell>
-                        <TableCell align="right">{item.expected_quantity}</TableCell>
-                        <TableCell align="right">{item.received_quantity}</TableCell>
-                        <TableCell align="right">{item.remaining_quantity}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={item.quality_status}
-                            color={item.quality_status === 'GOOD' ? 'success' : 'error'}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                            <TextField
-                              type="number"
-                              size="small"
-                              placeholder="Qty"
-                              sx={{ width: 80 }}
-                              onChange={(e) => {
-                                const qty = parseInt(e.target.value) || 0;
-                                handleReceiving(item, qty);
-                              }}
-                            />
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        );
-
-      case 2:
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Putaway Process
-              </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Assign storage locations for received items
-              </Alert>
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item Code</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell align="right">Received Qty</TableCell>
-                      <TableCell>Suggested Location</TableCell>
-                      <TableCell>Assign Location</TableCell>
-                      <TableCell>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedASN.line_items.filter(item => item.received_quantity > 0).map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.item_code}</TableCell>
-                        <TableCell>{item.item_description}</TableCell>
-                        <TableCell align="right">{item.received_quantity}</TableCell>
-                        <TableCell>
-                          <Chip label="A-01-01" variant="outlined" size="small" />
-                        </TableCell>
-                        <TableCell>
-                          <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <Select
-                              value={item.putaway_location || ''}
-                              onChange={(e) => handlePutaway(item.id, e.target.value)}
-                            >
-                              <MenuItem value="A-01-01">A-01-01</MenuItem>
-                              <MenuItem value="A-01-02">A-01-02</MenuItem>
-                              <MenuItem value="B-01-01">B-01-01</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={item.putaway_location ? "Assigned" : "Pending"}
-                            color={item.putaway_location ? "success" : "warning"}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        );
-
-      case 3:
-        return (
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Inventory Insertion
-              </Typography>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Finalize inventory balance updates
-              </Alert>
-              <TableContainer component={Paper}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item Code</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell align="right">Quantity</TableCell>
-                      <TableCell>Location</TableCell>
-                      <TableCell>Batch</TableCell>
-                      <TableCell>Inventory Status</TableCell>
-                      <TableCell>Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {selectedASN.line_items.filter(item => item.putaway_location).map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.item_code}</TableCell>
-                        <TableCell>{item.item_description}</TableCell>
-                        <TableCell align="right">{item.received_quantity}</TableCell>
-                        <TableCell>{item.putaway_location}</TableCell>
-                        <TableCell>{item.batch_number || 'AUTO-GEN-' + Date.now().toString().slice(-6)}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={item.inventory_status}
-                            color={item.inventory_status === 'COMPLETED' ? "success" : "warning"}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            disabled={item.inventory_status === 'COMPLETED'}
-                            onClick={() => handleInventoryInsertion(item.id)}
-                          >
-                            Insert to Inventory
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        );
-
-      default:
-        return null;
+    if (validEntries.length === 0) {
+      alert('Please enter some data in the spreadsheet');
+      return;
     }
+
+    console.log('Saving ASN Spreadsheet Data:', {
+      totalRows: gridData.length,
+      validEntries: validEntries.length,
+      data: validEntries
+    });
+    
+    alert(`ASN Spreadsheet saved with ${validEntries.length} entries`);
+    setAsnDialogOpen(false);
   };
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        ASN Workflow Demo - Complete Process
-      </Typography>
-      
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-
-      <Box sx={{ mb: 3 }}>
-        {renderStepContent(activeStep)}
-      </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4">
+          ASN Management System
+        </Typography>
         <Button
-          disabled={activeStep === 0}
-          onClick={handleBack}
-        >
-          Back
-        </Button>
-        
-        <Button
-          disabled={activeStep === steps.length - 1}
-          onClick={handleNext}
           variant="contained"
+          startIcon={<Add />}
+          onClick={handleCreateNewASN}
+          color="primary"
         >
-          {activeStep === steps.length - 1 ? 'Complete' : 'Next'}
+          Create New ASN
         </Button>
       </Box>
 
-      {activeStep === steps.length - 1 && (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          <Typography variant="h6">
-            ASN Workflow Complete! 🎉
-          </Typography>
-          <Typography>
-            All items have been successfully received, assigned to storage locations, and added to inventory.
-            The complete ASN workflow from data entry through inventory insertion has been demonstrated.
-          </Typography>
-        </Alert>
-      )}
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          ASN List
+        </Typography>
+        
+        {asnList.map((asn) => (
+          <Card key={asn.ID} sx={{ mb: 2 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="h6">{asn.ASN_CODE}</Typography>
+                  <Typography color="text.secondary">
+                    Supplier: {asn.SUPPLIER} | PO: {asn.PO_NO} | Status: {asn.ASN_STATUS}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Created: {asn.CREATE_TIME} | Updated: {asn.UPDATE_TIME}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Button
+                    startIcon={<Visibility />}
+                    onClick={() => {
+                      setSelectedASN(asn);
+                      setDetailsDialogOpen(true);
+                    }}
+                    sx={{ mr: 1 }}
+                  >
+                    View
+                  </Button>
+                  <Button
+                    startIcon={<Edit />}
+                    onClick={() => {
+                      setNewASN(asn);
+                      setAsnDialogOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        ))}
+      </Paper>
+
+      {/* Create/Edit ASN Dialog - Pure Spreadsheet Interface */}
+      <Dialog open={asnDialogOpen} onClose={handleCloseDialog} maxWidth="xl" fullWidth>
+        <DialogTitle>
+          ASN Entry Spreadsheet
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              📊 <strong>Excel-like Spreadsheet:</strong> Copy and paste from Excel/Google Sheets. 
+              Select cells and ranges, drag to fill, use Ctrl+C/Ctrl+V. Click "Add Rows" to expand.
+            </Alert>
+
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+              <Button
+                variant="contained"
+                onClick={handleAddRows}
+                size="small"
+              >
+                Add 10 Rows
+              </Button>
+              <Typography variant="body2" color="text.secondary">
+                💡 Tip: Copy data from Excel and paste directly into the grid. Supports multi-cell selection and range operations.
+              </Typography>
+            </Box>
+
+            {/* Pure Spreadsheet Grid */}
+            <Box sx={{ height: 600, width: '100%', border: 1, borderColor: 'divider' }}>
+              <div className="ag-theme-material" style={{ height: '100%', width: '100%' }}>
+                <AgGridReact
+                  rowData={gridData}
+                  columnDefs={itemColumnDefs}
+                  enableRangeSelection={true}
+                  enableFillHandle={true}
+                  enableCellTextSelection={true}
+                  suppressMenuHide={true}
+                  onCellValueChanged={onCellValueChanged}
+                  defaultColDef={{
+                    resizable: true,
+                    suppressMovable: true,
+                    editable: true,
+                    cellEditor: 'agTextCellEditor'
+                  }}
+                  clipboardDelimiter="\t"
+                  processDataFromClipboard={(params) => {
+                    return params.data;
+                  }}
+                  rowSelection="multiple"
+                  suppressRowClickSelection={true}
+                  enterNavigatesVertically={true}
+                  enterNavigatesVerticallyAfterEdit={true}
+                  suppressClickEdit={false}
+                  singleClickEdit={true}
+                  stopEditingWhenCellsLoseFocus={true}
+                  undoRedoCellEditing={true}
+                  animateRows={true}
+                  pagination={false}
+                  suppressPaginationPanel={true}
+                  rowHeight={35}
+                />
+              </div>
+            </Box>
+
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                Total Rows: {gridData.length} | Entries with Data: {gridData.filter(item => 
+                  item.ASN_CODE || item.SUPPLIER || item.GOODS_CODE || (item.ID && item.ID > 0)
+                ).length}
+              </Typography>
+              <Box>
+                <Button variant="outlined" size="small" onClick={() => setGridData([])}>
+                  Clear All
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveASN} variant="contained">
+            Save ASN Data
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ASN Details Dialog */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          ASN Details: {selectedASN?.ASN_CODE}
+        </DialogTitle>
+        <DialogContent>
+          {selectedASN && (
+            <Box sx={{ pt: 2 }}>
+              <Typography variant="h6" gutterBottom>ASN Information</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 3 }}>
+                <TextField
+                  label="ASN Code"
+                  value={selectedASN.ASN_CODE}
+                  disabled
+                  variant="outlined"
+                />
+                <TextField
+                  label="Status"
+                  value={selectedASN.ASN_STATUS}
+                  disabled
+                  variant="outlined"
+                />
+                <TextField
+                  label="Supplier"
+                  value={selectedASN.SUPPLIER}
+                  disabled
+                  variant="outlined"
+                />
+                <TextField
+                  label="PO Number"
+                  value={selectedASN.PO_NO}
+                  disabled
+                  variant="outlined"
+                />
+                <TextField
+                  label="Created"
+                  value={selectedASN.CREATE_TIME}
+                  disabled
+                  variant="outlined"
+                />
+                <TextField
+                  label="Updated"
+                  value={selectedASN.UPDATE_TIME}
+                  disabled
+                  variant="outlined"
+                />
+              </Box>
+              
+              <Alert severity="info">
+                Item details view will be implemented next.
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialogOpen(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
-export default ASNWorkflowDemo;
+export default ASNManagement;
+

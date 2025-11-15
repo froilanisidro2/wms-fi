@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { AgGridReact } from 'ag-grid-react';
 import {
   AppBar,
   Toolbar,
@@ -20,7 +21,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  Chip,
+  Alert
 } from '@mui/material';
 import {
   Inventory,
@@ -28,9 +30,12 @@ import {
   Receipt,
   Assessment,
   Business,
-  Settings
+  Settings,
+  Add
 } from '@mui/icons-material';
-import ASNWorkflowDemo from './ASNWorkflowDemo';
+import ASNManagement from './ASNManagement';
+import SimpleSpreadsheet from './SimpleSpreadsheet';
+import SimpleTable from './SimpleTable';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -150,7 +155,226 @@ const SimpleDashboard = () => (
 
 // Simple Inbound Component
 const SimpleInbound = () => {
-  const [showWorkflowDemo, setShowWorkflowDemo] = React.useState(false);
+  const [showWorkflowDemo, setShowWorkflowDemo] = useState(false);
+  const [showMobileView, setShowMobileView] = useState(false);
+  const [showOptimizedView, setShowOptimizedView] = useState(false);
+  const [spreadsheetType, setSpreadsheetType] = useState<'ag-grid' | 'mui-datagrid' | 'simple-table'>('ag-grid');
+  
+  // ASN Grid data for spreadsheet-style entry
+  const [asnGridData, setAsnGridData] = useState<ASNRow[]>([
+    {
+      ID: 1,
+      ASN_NUMBER: 'ASN-20251115-001',
+      VENDOR: 'ABC Trading Corp',
+      LINES: 3,
+      CURRENT_STEP: 'Putaway',
+      STATUS: 'In Progress',
+      PROGRESS: 75,
+      PO_NUMBER: 'PO-20251115-001',
+      EXPECTED_DATE: '2025-11-15',
+      CREATE_TIME: '2025-11-15 08:00:00',
+      UPDATE_TIME: '2025-11-15 14:30:00'
+    },
+    {
+      ID: 2,
+      ASN_NUMBER: 'ASN-20251115-002',
+      VENDOR: 'Metro Food Supply',
+      LINES: 5,
+      CURRENT_STEP: 'Receiving',
+      STATUS: 'Receiving',
+      PROGRESS: 60,
+      PO_NUMBER: 'PO-20251115-002',
+      EXPECTED_DATE: '2025-11-15',
+      CREATE_TIME: '2025-11-15 09:30:00',
+      UPDATE_TIME: '2025-11-15 13:45:00'
+    },
+    {
+      ID: 3,
+      ASN_NUMBER: 'ASN-20251114-003',
+      VENDOR: 'Fresh Market Ltd',
+      LINES: 4,
+      CURRENT_STEP: 'Complete',
+      STATUS: 'Complete',
+      PROGRESS: 100,
+      PO_NUMBER: 'PO-20251114-003',
+      EXPECTED_DATE: '2025-11-14',
+      CREATE_TIME: '2025-11-14 10:00:00',
+      UPDATE_TIME: '2025-11-14 17:15:00'
+    },
+    // Add empty rows for new entries
+    ...Array(10).fill(null).map((_, index) => ({
+      ID: 4 + index,
+      ASN_NUMBER: '',
+      VENDOR: '',
+      LINES: undefined,
+      CURRENT_STEP: '',
+      STATUS: '',
+      PROGRESS: undefined,
+      PO_NUMBER: '',
+      EXPECTED_DATE: '',
+      CREATE_TIME: '',
+      UPDATE_TIME: ''
+    }))
+  ]);
+
+  // AG Grid column definitions for ASN spreadsheet
+  const asnColumnDefs = [
+    { 
+      field: 'ID' as keyof ASNRow, 
+      headerName: 'ID', 
+      width: 60,
+      editable: true,
+      cellEditor: 'agNumberCellEditor',
+      type: 'numericColumn'
+    },
+    { 
+      field: 'ASN_NUMBER' as keyof ASNRow, 
+      headerName: 'ASN Number', 
+      width: 140,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'VENDOR' as keyof ASNRow, 
+      headerName: 'Vendor', 
+      width: 150,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'LINES' as keyof ASNRow, 
+      headerName: 'Lines', 
+      width: 80,
+      editable: true,
+      cellEditor: 'agNumberCellEditor',
+      type: 'numericColumn'
+    },
+    { 
+      field: 'CURRENT_STEP' as keyof ASNRow, 
+      headerName: 'Current Step', 
+      width: 120,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: {
+        values: ['Created', 'Receiving', 'Putaway', 'Complete']
+      }
+    },
+    { 
+      field: 'STATUS' as keyof ASNRow, 
+      headerName: 'Status', 
+      width: 100,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: {
+        values: ['Draft', 'In Progress', 'Receiving', 'Complete', 'On Hold']
+      }
+    },
+    { 
+      field: 'PROGRESS' as keyof ASNRow, 
+      headerName: 'Progress %', 
+      width: 100,
+      editable: true,
+      cellEditor: 'agNumberCellEditor',
+      type: 'numericColumn'
+    },
+    { 
+      field: 'PO_NUMBER' as keyof ASNRow, 
+      headerName: 'PO Number', 
+      width: 130,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'EXPECTED_DATE' as keyof ASNRow, 
+      headerName: 'Expected Date', 
+      width: 120,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'CREATE_TIME' as keyof ASNRow, 
+      headerName: 'Create Time', 
+      width: 150,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    },
+    { 
+      field: 'UPDATE_TIME' as keyof ASNRow, 
+      headerName: 'Update Time', 
+      width: 150,
+      editable: true,
+      cellEditor: 'agTextCellEditor'
+    }
+  ];
+
+  // Function to add new rows to the grid
+  const handleAddRows = () => {
+    const newRowsCount = 10;
+    const currentMaxId = Math.max(...asnGridData.map(row => row.ID || 0));
+    const newRows = Array(newRowsCount).fill(null).map((_, index) => ({
+      ID: currentMaxId + 1 + index,
+      ASN_NUMBER: '',
+      VENDOR: '',
+      LINES: undefined,
+      CURRENT_STEP: '',
+      STATUS: '',
+      PROGRESS: undefined,
+      PO_NUMBER: '',
+      EXPECTED_DATE: '',
+      CREATE_TIME: '',
+      UPDATE_TIME: ''
+    }));
+    setAsnGridData([...asnGridData, ...newRows]);
+  };
+
+  // Function to save grid data
+  const handleSaveASNGrid = () => {
+    console.log('Saving ASN Grid Data:', asnGridData);
+    // Here you would typically send the data to your backend API
+    alert('ASN data saved successfully!');
+  };
+
+  // Function to handle multi-cell paste from clipboard
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const rows = text.trim().split('\n');
+      const newData = [...asnGridData];
+      
+      rows.forEach((row, rowIndex) => {
+        const cells = row.split('\t'); // Excel/Google Sheets use tab-separated values
+        if (rowIndex < newData.length) {
+          // Map cells to the appropriate fields based on column order
+          const currentRow = newData[rowIndex];
+          if (cells[0]) currentRow.ID = parseInt(cells[0]) || currentRow.ID;
+          if (cells[1]) currentRow.ASN_NUMBER = cells[1];
+          if (cells[2]) currentRow.VENDOR = cells[2];
+          if (cells[3]) currentRow.LINES = parseInt(cells[3]) || currentRow.LINES;
+          if (cells[4]) currentRow.CURRENT_STEP = cells[4];
+          if (cells[5]) currentRow.STATUS = cells[5];
+          if (cells[6]) currentRow.PROGRESS = parseInt(cells[6]) || currentRow.PROGRESS;
+          if (cells[7]) currentRow.PO_NUMBER = cells[7];
+          if (cells[8]) currentRow.EXPECTED_DATE = cells[8];
+          if (cells[9]) currentRow.CREATE_TIME = cells[9];
+          if (cells[10]) currentRow.UPDATE_TIME = cells[10];
+        }
+      });
+      
+      setAsnGridData(newData);
+      alert(`Pasted ${rows.length} rows successfully!`);
+    } catch (err) {
+      console.error('Failed to read clipboard:', err);
+      alert('Please copy data from Excel/Google Sheets first');
+    }
+  };
+
+  // Function to handle keyboard shortcuts
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.ctrlKey && e.key === 'v') {
+      e.preventDefault();
+      handlePaste();
+    }
+  };
 
   if (showWorkflowDemo) {
     return (
@@ -164,7 +388,7 @@ const SimpleInbound = () => {
             ← Back to Overview
           </Button>
         </Box>
-        <ASNWorkflowDemo />
+        <ASNManagement />
       </Box>
     );
   }
@@ -200,57 +424,276 @@ const SimpleInbound = () => {
       <Card>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6" gutterBottom>Current Active ASNs</Typography>
-            <Button 
-              variant="contained" 
-              color="secondary"
-              startIcon="📝"
-            >
-              + Create New ASN
-            </Button>
+            <Typography variant="h6" gutterBottom>Choose Your Spreadsheet Style</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button 
+                variant={spreadsheetType === 'ag-grid' ? 'contained' : 'outlined'}
+                onClick={() => setSpreadsheetType('ag-grid')}
+              >
+                AG Grid
+              </Button>
+              <Button 
+                variant={spreadsheetType === 'mui-datagrid' ? 'contained' : 'outlined'}
+                onClick={() => setSpreadsheetType('mui-datagrid')}
+              >
+                MUI DataGrid
+              </Button>
+              <Button 
+                variant={spreadsheetType === 'simple-table' ? 'contained' : 'outlined'}
+                onClick={() => setSpreadsheetType('simple-table')}
+              >
+                Simple Table
+              </Button>
+            </Box>
           </Box>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>ASN Number</TableCell>
-                  <TableCell>Vendor</TableCell>
-                  <TableCell>Lines</TableCell>
-                  <TableCell>Current Step</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Progress</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <TableRow>
-                  <TableCell>ASN-20251115-001</TableCell>
-                  <TableCell>ABC Trading Corp</TableCell>
-                  <TableCell>3</TableCell>
-                  <TableCell>Putaway</TableCell>
-                  <TableCell><Chip label="In Progress" color="info" size="small" /></TableCell>
-                  <TableCell>75%</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>ASN-20251115-002</TableCell>
-                  <TableCell>Metro Food Supply</TableCell>
-                  <TableCell>5</TableCell>
-                  <TableCell>Receiving</TableCell>
-                  <TableCell><Chip label="Receiving" color="warning" size="small" /></TableCell>
-                  <TableCell>60%</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>ASN-20251114-003</TableCell>
-                  <TableCell>Fresh Market Ltd</TableCell>
-                  <TableCell>4</TableCell>
-                  <TableCell>Complete</TableCell>
-                  <TableCell><Chip label="Complete" color="success" size="small" /></TableCell>
-                  <TableCell>100%</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
+          
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Try different spreadsheet options above! Each provides Excel-like editing with different features.
+          </Alert>
         </CardContent>
       </Card>
+
+      {/* Render selected spreadsheet type */}
+      {spreadsheetType === 'ag-grid' && (
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" gutterBottom>ASN Management - Custom Excel-like Table</Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  variant="contained" 
+                  color="primary"
+                  startIcon={<Add />}
+                  onClick={handleAddRows}
+                >
+                  Add 10 Rows
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  color="success"
+                  onClick={handlePaste}
+                >
+                  Paste from Excel
+                </Button>
+                <Button 
+                  variant="contained" 
+                  color="success"
+                  onClick={handleSaveASNGrid}
+                >
+                  Save ASNs
+                </Button>
+              </Box>
+            </Box>
+            
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Excel-like table: Click cells to edit, Tab to navigate, Ctrl+V to paste multiple rows from Excel!
+            </Alert>
+            
+            <Box 
+              onKeyDown={handleKeyDown}
+              tabIndex={0}
+              sx={{ 
+                height: 400, 
+                width: '100%', 
+                overflow: 'auto',
+                border: 1,
+                borderColor: 'divider',
+                outline: 'none',
+                '&:focus': {
+                  borderColor: 'primary.main',
+                  borderWidth: 2
+                },
+                '& table': {
+                  width: '100%',
+                  borderCollapse: 'collapse'
+                },
+                '& th, & td': {
+                  border: 1,
+                  borderColor: 'divider',
+                  padding: '4px 8px',
+                  minWidth: '100px'
+                },
+                '& th': {
+                  backgroundColor: 'grey.100',
+                  fontWeight: 'bold',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 1
+                },
+                '& input': {
+                  border: 'none',
+                  outline: 'none',
+                  width: '100%',
+                  padding: '2px',
+                  fontSize: '14px'
+              }
+            }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>ASN Number</th>
+                    <th>Vendor</th>
+                    <th>Lines</th>
+                    <th>Current Step</th>
+                    <th>Status</th>
+                    <th>Progress %</th>
+                    <th>PO Number</th>
+                    <th>Expected Date</th>
+                    <th>Create Time</th>
+                    <th>Update Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {asnGridData.map((row, rowIndex) => (
+                    <tr key={row.ID} style={{ backgroundColor: rowIndex % 2 === 0 ? '#fafafa' : 'white' }}>
+                      <td>
+                        <input 
+                          type="number" 
+                          value={row.ID || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, ID: parseInt(e.target.value) || 0 };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="text" 
+                          value={row.ASN_NUMBER || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, ASN_NUMBER: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="text" 
+                          value={row.VENDOR || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, VENDOR: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          value={row.LINES || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, LINES: parseInt(e.target.value) || 0 };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <select 
+                          value={row.CURRENT_STEP || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, CURRENT_STEP: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                          style={{ width: '100%', border: 'none', padding: '2px' }}
+                        >
+                          <option value="">-</option>
+                          <option value="Created">Created</option>
+                          <option value="Receiving">Receiving</option>
+                          <option value="Putaway">Putaway</option>
+                          <option value="Complete">Complete</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select 
+                          value={row.STATUS || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, STATUS: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                          style={{ width: '100%', border: 'none', padding: '2px' }}
+                        >
+                          <option value="">-</option>
+                          <option value="Draft">Draft</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Receiving">Receiving</option>
+                          <option value="Complete">Complete</option>
+                          <option value="On Hold">On Hold</option>
+                        </select>
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          value={row.PROGRESS || ''} 
+                          min="0"
+                          max="100"
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, PROGRESS: parseInt(e.target.value) || 0 };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="text" 
+                          value={row.PO_NUMBER || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, PO_NUMBER: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="date" 
+                          value={row.EXPECTED_DATE || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, EXPECTED_DATE: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="text" 
+                          value={row.CREATE_TIME || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, CREATE_TIME: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="text" 
+                          value={row.UPDATE_TIME || ''} 
+                          onChange={(e) => {
+                            const newData = [...asnGridData];
+                            newData[rowIndex] = { ...row, UPDATE_TIME: e.target.value };
+                            setAsnGridData(newData);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {spreadsheetType === 'mui-datagrid' && <SimpleSpreadsheet />}
+      {spreadsheetType === 'simple-table' && <SimpleTable />}
     </Box>
   );
 };
@@ -837,6 +1280,20 @@ const SimpleSetup = () => {
     </Box>
   );
 };
+
+interface ASNRow {
+  ID?: number;
+  ASN_NUMBER?: string;
+  VENDOR?: string;
+  LINES?: number;
+  CURRENT_STEP?: string;
+  STATUS?: string;
+  PROGRESS?: number;
+  PO_NUMBER?: string;
+  EXPECTED_DATE?: string;
+  CREATE_TIME?: string;
+  UPDATE_TIME?: string;
+}
 
 function SimpleWMS() {
   const [tabValue, setTabValue] = useState(0);
