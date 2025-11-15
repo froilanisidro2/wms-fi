@@ -1,0 +1,296 @@
+# PostgREST Docker Setup
+
+This repository contains a Docker Compose setup for running [PostgREST](https://postgrest.org/) with Swagger UI for easy API exploration.
+
+## Overview
+
+This setup provides:
+- **PostgREST**: A standalone web server that turns your PostgreSQL database directly into a RESTful API
+- **Swagger UI**: An interactive API documentation interface
+- **Persistent Storage**: Data is stored in the local `./data` directory
+
+## Prerequisites
+
+- Docker and Docker Compose installed
+- A running PostgreSQL database accessible from Docker
+- Basic knowledge of PostgreSQL and REST APIs
+
+## Getting Started
+
+### 1. Configure Environment Variables
+
+Copy the template `.env.template` file and modify the values according to your environment:
+
+```bash
+cp .env.template .env
+```
+
+Then edit the `.env` file to set your specific configuration values:
+
+Important variables to configure:
+
+- `DATABASE_HOST`: Your PostgreSQL host (use `host.docker.internal` for localhost)
+- `DATABASE_NAME`: Your database name
+- `DATABASE_USERNAME`: Database username
+- `DATABASE_PASSWORD`: Database password
+- `DATABASE_PORT`: PostgreSQL port (typically 5432)
+- `PGRST_DB_SCHEMA`: The PostgreSQL schema to expose (default: public)
+- `PGRST_DB_ANON_ROLE`: PostgreSQL role for anonymous access
+- `PGRST_JWT_SECRET`: Secret for JWT token generation
+
+### 2. Start the Services
+
+```bash
+docker-compose up -d
+```
+
+This command starts the PostgREST and Swagger UI services in detached mode.
+
+### 3. Persistent Data
+
+The setup uses the `./data` directory to store persistent data:
+- `./data/postgrest`: Stores PostgREST data
+- `./data/swagger`: Stores Swagger UI data
+
+This ensures your data is preserved across container restarts or rebuilds.
+
+### 4. Access the Services
+
+- **API Gateway**: http://localhost:8090 (Secured with API key)
+- **Swagger UI**: http://localhost:8085 (Pre-configured with API key)
+
+## Environment Variables
+
+The `.env.template` file contains all necessary environment variables with placeholder values. Here's what each variable is for:
+
+#### Project Configuration
+- `COMPOSE_PROJECT_NAME`: Name prefix for Docker containers
+- `COMPOSE_PROJECT_INDEX`: Index suffix for Docker containers
+- `HOST_URL`: Base URL for services
+- `PORT_PGREST`: Port for PostgREST service (default: 3000)
+- `PORT_SWAGGER`: Port for Swagger UI service (default: 8085)
+
+#### Database Connection
+- `DATABASE_HOST`: PostgreSQL host address
+- `DATABASE_NAME`: Name of your PostgreSQL database
+- `DATABASE_USERNAME`: PostgreSQL username
+- `DATABASE_PASSWORD`: PostgreSQL password
+- `DATABASE_PORT`: PostgreSQL port (default: 5432)
+- `DATABASE_SSL`: Whether to use SSL for database connection (true/false)
+
+#### PostgREST Configuration
+- `PGRST_DB_SCHEMA`: Database schema to expose (default: public)
+- `PGRST_DB_ANON_ROLE`: PostgreSQL role for anonymous access
+- `PGRST_DB_POOL`: Connection pool size
+- `PGRST_JWT_SECRET`: Secret key for JWT authentication
+- `PGRST_MAX_ROWS`: Maximum number of rows returned per request
+
+#### Swagger UI
+- `SWAGGER_USER`: Username for Swagger UI authentication
+- `SWAGGER_PASSWORD`: Password for Swagger UI authentication
+
+## Using PostgREST
+
+### Basic Requests
+
+PostgREST automatically creates RESTful endpoints for each table in your database:
+
+- **GET** `/table_name` - List all records
+- **GET** `/table_name?id=eq.123` - Get a specific record
+- **POST** `/table_name` - Create a new record
+- **PUT** `/table_name?id=eq.123` - Update a record
+- **DELETE** `/table_name?id=eq.123` - Delete a record
+
+## Using Swagger UI with API Key Authentication
+
+The Swagger UI is pre-configured to use the API key defined in the `.env` file. When you access Swagger UI at http://localhost:8085, it will be automatically configured with the API key for authentication.
+
+### How It Works
+
+1. **Pre-configured API Key**: Swagger UI is configured with the API key from the `.env` file using the `SWAGGER_UI_APIKEYS` environment variable.
+2. **Persistent Authorization**: The `SWAGGER_UI_PERSIST_AUTHORIZATION` setting ensures that the API key is remembered between requests.
+3. **Dynamic URL Configuration**: The setup uses a dynamic approach to determine the API URL based on the browser's hostname and configured port, removing hardcoded URLs.
+4. **Environment Variable Injection**: The API port is injected into Swagger UI at runtime via a custom script that creates a JavaScript configuration file.
+5. **Try It Out**: You can use the "Try it out" feature in Swagger UI to test API endpoints, and the API key will be automatically included in the requests.
+
+### Testing API Endpoints
+
+1. Open Swagger UI at http://localhost:8085
+2. Browse the available endpoints
+3. Click on an endpoint you want to test
+4. Click the "Try it out" button
+5. Fill in any required parameters
+6. Click "Execute" to send the request
+
+The API key will be automatically included in the request headers, allowing you to authenticate with the PostgREST API through the Nginx gateway.
+
+### Changing the API Key
+
+If you need to change the API key, simply update it in the `.env` file (variable `API_KEY`). The API key is dynamically injected into both:
+
+- Swagger UI configuration through the `SWAGGER_UI_APIKEYS` environment variable
+- Nginx configuration through a template system that replaces the value at container startup
+
+Then restart the services with:
+```bash
+docker-compose down && docker-compose up -d
+```
+
+This dynamic approach ensures that your API key changes are applied consistently across all services without having to manually update multiple files.
+
+## Security Architecture
+
+### API Key Authentication
+
+This setup includes API key-based authentication managed by Nginx:
+
+- All API requests require a valid API key sent in the `X-Api-Key` header
+- The API key is configured in the `.env` file (`API_KEY` variable)
+- Nginx validates the API key before forwarding requests to PostgREST
+- Unauthorized requests receive a 401 error response
+
+Example authenticated request:
+```bash
+curl -H "X-Api-Key: your-secret-api-key-12345" http://localhost:8090/your_table
+```
+
+### CORS Configuration
+
+The Nginx configuration includes proper CORS (Cross-Origin Resource Sharing) headers to allow:
+
+- Access from any origin (`Access-Control-Allow-Origin: *`)
+- Common HTTP methods (GET, POST, PUT, DELETE, OPTIONS, etc.)
+- Required headers including Authorization and X-Api-Key
+- Preflight requests (OPTIONS method) that don't require authentication
+
+This ensures that Swagger UI running on port 8085 can communicate with the API Gateway on port 8090, and that other client applications can also access the API if they provide the correct API key.
+
+> **Important**: 
+> 1. Swagger UI is configured to use `localhost:${PORT_NGINX}` URLs for browser access. This is essential because the browser cannot resolve Docker network hostnames like `nginx`.
+> 2. The `/openapi.json` endpoint is accessible without API key authentication to allow Swagger UI to fetch the API definition.
+
+### Security Measures
+
+This setup implements several security best practices:
+
+1. **Direct API Protection**: PostgREST is not directly exposed to the host machine, only accessible via the Nginx gateway
+2. **Sensitive Endpoint Blocking**: Direct access to PostgreSQL system functions is blocked
+3. **Security Headers**: Standard security headers are added to all responses
+4. **API Key Validation**: All non-OPTIONS requests require valid authentication
+5. **Secure Network Configuration**: Services communicate through an internal Docker network
+
+## Service Architecture
+
+- **Nginx (API Gateway)**: Handles authentication, CORS, and security headers
+- **PostgREST**: Converts database tables to REST endpoints (only accessible internally)
+- **Swagger UI**: Pre-configured with API key for easy API testing
+
+### Custom Configuration Files
+
+The setup includes several custom files to ensure proper operation:
+
+1. **data/swagger/docker-entrypoint-wrapper.sh**: A script that generates environment-specific JavaScript configuration for Swagger UI at container startup. It creates an `env-config.js` file that defines global variables like API_PORT.
+
+2. **data/swagger/index.html**: A custom Swagger UI HTML template that includes the dynamically generated `env-config.js` script before loading the Swagger UI components.
+
+3. **data/swagger/swagger-initializer.js**: A customized version of the Swagger UI initializer that uses dynamic URL generation based on the current hostname and the injected API_PORT variable.
+
+4. **data/nginx/docker-entrypoint-wrapper.sh**: A script that processes the nginx configuration template and injects the API_KEY environment variable value at container startup.
+
+5. **data/nginx/default.conf.template**: A template for the nginx configuration that uses environment variable placeholders (${API_KEY}) that are replaced at container startup.
+
+These custom files work together to make the setup more flexible and environment-agnostic, avoiding hardcoded values and enabling dynamic configuration through environment variables.
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Errors**
+   - Ensure your PostgreSQL server is running and accessible
+   - Check the credentials in your `.env` file
+   - If using `host.docker.internal`, make sure your Docker version supports it
+
+2. **Permission Denied Errors**
+   - Ensure the `PGRST_DB_ANON_ROLE` has appropriate permissions on your tables
+   - Check permissions on the `./data` directory if you encounter file access issues
+
+3. **Schema Not Found**
+   - Verify that `PGRST_DB_SCHEMA` matches an existing schema in your database
+
+4. **Data Persistence Issues**
+   - Ensure the `./data` directory and its subdirectories have proper write permissions
+   - If containers are recreated but data seems lost, check if the volume paths in `docker-compose.yml` match the actual data directories
+
+### Viewing Logs
+
+```bash
+docker-compose logs -f
+```
+
+### CORS Issues
+
+If you experience CORS errors when accessing the API:
+
+1. Ensure the `Access-Control-Allow-Origin` header is properly set in nginx.conf
+2. Check that preflight (OPTIONS) requests are handled correctly
+3. Verify your client is sending the correct headers
+
+### API Key Authentication
+
+If you get 401 Unauthorized errors:
+
+1. Ensure you're sending the correct API key in the X-Api-Key header
+2. Check that the API_KEY in .env matches the key you're using
+3. Verify Swagger UI is properly configured with the API key
+
+### Swagger UI Issues
+
+If Swagger UI fails to load the API definition:
+
+1. Ensure the `/openapi.json` endpoint is accessible by testing it directly:
+   ```bash
+   curl -I http://localhost:8090/openapi.json
+   ```
+   This should return a 200 status code. If it returns 404, check the `nginx.conf` configuration.
+
+2. The PostgREST OpenAPI schema is served at the root endpoint (`/`) with an `Accept: application/openapi+json` header.
+   The Nginx configuration forwards requests to `/openapi.json` to the root PostgREST endpoint with this header.
+
+3. The Swagger UI is configured to dynamically determine the API URL using:
+   - The current browser hostname
+   - The API_PORT environment variable from the .env file
+   - This ensures no hardcoded URLs are used, making it flexible for different deployment environments
+
+4. Check the Swagger UI container logs for any initialization errors:
+   ```bash
+   docker logs d_postgrest-swaggerapi-0
+   ```
+
+5. For environment variable injection issues, verify that:
+   - The docker-entrypoint-wrapper.sh script is properly creating the env-config.js file
+   - The custom index.html includes the env-config.js script before loading swagger-initializer.js
+
+6. If needed, restart the services with:
+   ```bash
+   docker-compose down && docker-compose up -d
+   ```
+
+#### Note on API Key Configuration
+
+For simplicity and reliability, the API key is directly set in both:
+- The `.env` file (used by Swagger UI through the `SWAGGER_UI_APIKEYS` environment variable)
+- The `nginx.conf` file (where it's hardcoded as `$api_key_value`)
+
+If you want to change the API key, update it in both locations to ensure consistent behavior.
+
+This project is provided as-is without any warranty. Use at your own risk.
+
+## Additional Resources
+
+- [PostgREST Documentation](https://postgrest.org/en/stable/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Swagger UI Documentation](https://swagger.io/tools/swagger-ui/)
+
+## License
+
+This project is provided as-is without any warranty. Use at your own risk.

@@ -1,0 +1,81 @@
+# Sample Data for WMS-FI Testing
+# Philippine Warehouse Management System Sample Data
+# Use this for testing import templates and system functionality
+
+## SAMPLE ASN DATA
+# ASN for incoming food products from local supplier
+
+ASN_Number,Vendor_Code,Warehouse_Code,PO_Number,DR_Number,Vendor_Delivery_Note,Expected_Delivery_Date,Notes
+ASN-20251116-001,V001,WH001,PO-20251116-001,DR-20251116-001,ABC-VDN-001,2025-11-17,Morning delivery scheduled 8AM
+
+Line_Number,Item_Code,Expected_Quantity,Unit_of_Measure,Batch_Number,Manufacturing_Date,Expiry_Date,Pallet_Config_Qty,Special_Instructions
+1,ITM-001,400,BAG,RICE-BATCH-20251116,2025-11-16,2026-11-16,40,Premium quality rice - store in dry area
+2,ITM-002,288,BTL,OIL-BATCH-20251116,2025-11-16,2027-05-16,48,Cooking oil - handle carefully
+3,ITM-003,200,SACK,SUGAR-BATCH-20251116,2025-11-16,2028-11-16,20,White sugar - heavy items use forklift
+
+## SAMPLE SO DATA  
+# Sales order for retail customer Metro Retail Corp
+
+SO_Number,Customer_Code,Warehouse_Code,Customer_PO,Requested_Delivery_Date,Delivery_Address,Delivery_Contact,Delivery_Phone,Priority,Notes
+SO-20251117-001,C001,WH001,METRO-PO-001,2025-11-19,123 Retail Plaza Makati Metro Manila Philippines,Lisa Santos,+63-2-345-6789,HIGH,Urgent delivery for weekend sale
+
+Line_Number,Item_Code,Ordered_Quantity,Unit_Price,Required_Batch,Required_Expiry_After,Special_Instructions
+1,ITM-001,100,45.00,,2025-12-01,Fresh stock preferred
+2,ITM-002,60,85.00,OIL-BATCH-20251115,2026-01-01,New batch only
+3,ITM-003,50,55.00,,,Standard packaging
+
+## SAMPLE ITEM MASTER DATA
+# Additional food and household items
+
+Item_Code,Item_Name,Description,Unit_of_Measure,Item_Category,Item_Group,ABC_Classification,Weight_KG,Length_CM,Width_CM,Height_CM,Pallet_Qty,Stackable,Max_Stack_Height,Min_Stock_Level,Max_Stock_Level,Reorder_Point,Batch_Tracking,Serial_Tracking,Expiry_Tracking,Shelf_Life_Days
+ITM-011,Instant Noodles 85g,Instant noodles chicken flavor 85g pack,PCK,FOOD,INSTANT,A,0.085,12,8,2,120,TRUE,12,500,5000,1000,TRUE,FALSE,TRUE,365
+ITM-012,Canned Corned Beef 340g,Premium corned beef 340g can,CAN,FOOD,CANNED,B,0.34,10,7,11,24,TRUE,8,200,1500,300,TRUE,FALSE,TRUE,1095
+ITM-013,Dishwashing Liquid 500ml,Antibacterial dishwashing liquid 500ml,BTL,HOUSEHOLD,CLEANING,B,0.52,20,15,25,24,TRUE,6,100,800,150,FALSE,FALSE,FALSE,730
+ITM-014,Toilet Paper 12 Rolls,Soft toilet paper 12 rolls pack,PACK,HOUSEHOLD,HYGIENE,C,2.5,40,30,35,12,TRUE,5,50,400,75,FALSE,FALSE,FALSE,365
+ITM-015,Coffee 3in1 20g,Instant coffee mix 20g sachet,SACHET,FOOD,BEVERAGE,A,0.02,10,6,1,200,TRUE,15,1000,10000,2000,TRUE,FALSE,TRUE,545
+
+## SAMPLE VENDOR DATA
+# Filipino suppliers across different regions
+
+Vendor_Code,Vendor_Name,Contact_Person,Address,Phone,Email,TIN,Payment_Terms,Delivery_Terms,Active
+V005,Mindanao Agri Supply,Pedro Villanueva,888 Agriculture Center Davao City Davao del Sur Philippines,+63-82-123-4567,pedro@mindanaoagri.com,234-567-890-005,45 Days,FOB Davao,TRUE
+V006,Luzon Food Distributors,Carmen dela Rosa,777 Food Hub Caloocan Metro Manila Philippines,+63-2-777-8888,carmen@luzonfood.com,234-567-890-006,30 Days,Delivered,TRUE
+V007,Visayas Trading House,Antonio Mercado,555 Port Center Cebu City Cebu Philippines,+63-32-555-6666,antonio@visayastrading.com,234-567-890-007,60 Days,CIF Manila,TRUE
+
+## SAMPLE CUSTOMER DATA  
+# Mix of retail chains and online stores
+
+Customer_Code,Customer_Name,Contact_Person,Address,Phone,Email,TIN,Payment_Terms,Delivery_Terms,Credit_Limit,Active
+C005,Provincial Mart Network,Rosa Magbanua,999 Provincial Plaza Iloilo City Iloilo Philippines,+63-33-999-0000,rosa@provincialmart.com,345-678-901-005,30 Days,Third Party Logistics,750000.00,TRUE
+C006,Digital Commerce PH,Miguel Santos,111 Tech Hub Bonifacio Global City Metro Manila Philippines,+63-917-111-2222,miguel@digitalcommerce.ph,345-678-901-006,15 Days,Customer Pickup,300000.00,TRUE
+C007,Neighborhood Stores Inc,Elena Reyes,222 Community Center Quezon City Metro Manila Philippines,+63-2-222-3333,elena@neighborhood.ph,345-678-901-007,COD,Store Direct,150000.00,TRUE
+
+## TESTING SCENARIOS
+
+### Positive Test Cases:
+1. Normal ASN upload with all required fields
+2. SO upload with FIFO allocation preference  
+3. Item master with full specifications
+4. Vendor with complete contact information
+5. Customer with standard payment terms
+
+### Negative Test Cases:
+1. ASN with invalid vendor code
+2. SO with quantity exceeding inventory
+3. Item with invalid ABC classification
+4. Vendor with malformed TIN
+5. Customer with negative credit limit
+
+### Edge Cases:
+1. Maximum quantity orders
+2. Same-day delivery requests
+3. Items near expiry
+4. Special handling requirements
+5. Credit limit at maximum
+
+### Philippine Specific Tests:
+1. TIN format validation
+2. Philippine phone number formats
+3. Complete address with barangay
+4. DOH compliance for food items
+5. BIR requirements for business entities

@@ -1,0 +1,33 @@
+# ASN Upload Template - WMS Philippines
+# Advance Ship Notice (ASN) Template for Incoming Shipments
+# Format: CSV (Comma Separated Values)
+# Required fields are marked with *
+
+# HEADER INFORMATION
+ASN_Number*,Vendor_Code*,Warehouse_Code*,PO_Number,DR_Number,Vendor_Delivery_Note,Expected_Delivery_Date*,Notes
+ASN-20251115-001,V001,WH001,PO-20251115-001,DR-20251115-001,VDN-001,2025-11-16,Sample ASN for incoming rice shipment from ABC Trading
+
+# LINE ITEMS
+Line_Number*,Item_Code*,Expected_Quantity*,Unit_of_Measure*,Batch_Number,Manufacturing_Date,Expiry_Date,Pallet_Config_Qty,Special_Instructions
+1,ITM-001,200,BAG,BATCH-20251115,2025-11-15,2026-11-15,40,Store in dry area
+2,ITM-002,144,BTL,BATCH-20251115,2025-11-15,2027-05-15,48,Handle with care
+3,ITM-003,100,SACK,BATCH-20251115,2025-11-15,2028-11-15,20,Heavy items - use forklift
+
+# VALIDATION RULES:
+# - ASN_Number: Must be unique, format: ASN-YYYYMMDD-###
+# - Vendor_Code: Must exist in vendor master
+# - Warehouse_Code: Must exist in warehouse master  
+# - Item_Code: Must exist in item master
+# - Expected_Quantity: Must be > 0
+# - Expected_Delivery_Date: Format YYYY-MM-DD, cannot be in the past
+# - Batch_Number: Required if item has batch_tracking = true
+# - Manufacturing_Date/Expiry_Date: Required if item has expiry_tracking = true
+# - Pallet_Config_Qty: If blank, will use item master pallet_qty
+
+# PROCESS FLOW:
+# 1. Upload ASN Template → System validates data
+# 2. Generate ASN Receiving Checklist → Print for warehouse staff  
+# 3. Physical receiving → Update actual quantities received
+# 4. Generate Pallet Tags → Print labels for each pallet
+# 5. Putaway process → Assign storage locations
+# 6. Generate Gate Pass → Final receipt confirmation

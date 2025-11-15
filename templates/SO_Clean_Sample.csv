@@ -1,0 +1,4 @@
+SO_Number,Customer_Code,Warehouse_Code,Customer_PO,Requested_Delivery_Date,Delivery_Address,Delivery_Contact,Delivery_Phone,Priority,Notes,Line_Number,Item_Code,Ordered_Quantity,Unit_Price,Required_Batch,Required_Expiry_After,Special_Instructions
+SO-20251115-001,C001,WH001,CUST-PO-001,2025-11-18,456 Customer Address Manila Philippines,Lisa Santos,+63-2-345-6789,NORMAL,Deliver before 3PM,1,ITM-001,50,45.00,,2025-12-01,FIFO allocation preferred
+SO-20251115-001,C001,WH001,CUST-PO-001,2025-11-18,456 Customer Address Manila Philippines,Lisa Santos,+63-2-345-6789,NORMAL,Deliver before 3PM,2,ITM-002,30,85.00,BATCH-20251115,,Fresh stock only
+SO-20251115-001,C001,WH001,CUST-PO-001,2025-11-18,456 Customer Address Manila Philippines,Lisa Santos,+63-2-345-6789,NORMAL,Deliver before 3PM,3,ITM-003,25,55.00,,,Standard packaging

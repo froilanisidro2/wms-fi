@@ -1,0 +1,29 @@
+# Customer Master Upload Template - WMS Philippines  
+# Customer Master Template
+# Format: CSV (Comma Separated Values)
+# Required fields are marked with *
+
+Customer_Code*,Customer_Name*,Contact_Person,Address,Phone,Email,TIN,Payment_Terms,Delivery_Terms,Credit_Limit,Active*
+C001,Metro Retail Corp,Lisa Santos,123 Retail Plaza Makati Philippines,+63-2-345-6789,lisa@metroretail.com,234-567-890-001,30 Days,Delivered,1000000.00,TRUE
+C002,SuperMart Chain,Roberto Cruz,456 Mall Complex QC Philippines,+63-2-456-7890,roberto@supermart.com,234-567-890-002,15 Days,Customer Pickup,500000.00,TRUE
+C003,Online Store Philippines,Maria Fernandez,789 E-commerce Hub BGC Philippines,+63-917-567-8901,maria@onlinestore.ph,234-567-890-003,7 Days,Third Party Logistics,250000.00,TRUE
+C004,Convenience Store Network,Jose Rodriguez,321 Franchise Center Ortigas Philippines,+63-2-567-8901,jose@convenience.ph,234-567-890-004,COD,Store Direct,100000.00,TRUE
+
+# VALIDATION RULES:
+# - Customer_Code: Must be unique, alphanumeric, max 30 chars
+# - Customer_Name: Required, max 100 chars
+# - Phone: Philippine format recommended (+63-xx-xxx-xxxx or +63-9xx-xxx-xxxx for mobile)
+# - Email: Valid email format
+# - TIN: Philippine Tax Identification Number format (xxx-xxx-xxx-xxx)
+# - Payment_Terms: Standard terms (7 Days, 15 Days, 30 Days, COD)
+# - Delivery_Terms: Delivered, Customer Pickup, Third Party Logistics, Store Direct
+# - Credit_Limit: Maximum credit amount in PHP
+# - Active: TRUE/FALSE
+
+# PHILIPPINE BUSINESS REQUIREMENTS:
+# - TIN required for corporate customers
+# - Complete delivery address for logistics
+# - Credit limit management for AR control
+# - Payment terms for cash flow planning
+# - Contact person for order coordination
+# - Mobile numbers for SMS notifications

@@ -1,0 +1,35 @@
+# Item Master Upload Template - WMS Philippines
+# Item Master Template for Product Information
+# Format: CSV (Comma Separated Values)
+# Required fields are marked with *
+
+Item_Code*,Item_Name*,Description,Unit_of_Measure*,Item_Category,Item_Group,ABC_Classification,Weight_KG,Length_CM,Width_CM,Height_CM,Pallet_Qty,Stackable,Max_Stack_Height,Min_Stock_Level,Max_Stock_Level,Reorder_Point,Batch_Tracking*,Serial_Tracking*,Expiry_Tracking*,Shelf_Life_Days
+ITM-001,Rice Premium 25kg,Premium quality rice 25kg bag,BAG,FOOD,GRAINS,A,25.0,60,40,15,40,TRUE,4,100,1000,200,TRUE,FALSE,FALSE,365
+ITM-002,Cooking Oil 1L,Premium cooking oil 1 liter bottle,BTL,FOOD,OIL,A,0.92,25,25,28,48,TRUE,5,200,2000,400,TRUE,FALSE,TRUE,730
+ITM-003,Sugar White 50kg,Refined white sugar 50kg sack,SACK,FOOD,SWEETENER,A,50.0,80,50,20,20,TRUE,2,50,500,100,TRUE,FALSE,FALSE,1095
+ITM-004,Flour All Purpose 25kg,All purpose flour 25kg bag,BAG,FOOD,FLOUR,B,25.0,60,40,15,40,TRUE,4,50,500,100,TRUE,FALSE,TRUE,365
+ITM-005,Salt Iodized 1kg,Iodized table salt 1kg pack,PCK,FOOD,SEASONING,B,1.0,20,15,5,100,TRUE,10,100,1000,200,FALSE,FALSE,FALSE,1825
+
+# VALIDATION RULES:
+# - Item_Code: Must be unique, alphanumeric, max 50 chars
+# - Item_Name: Required, max 200 chars
+# - Unit_of_Measure: Standard UOM codes (PCS, KG, BAG, BOX, BTL, SACK, PCK)
+# - Item_Category: Standard categories (FOOD, HOUSEHOLD, PERSONAL_CARE, etc.)
+# - ABC_Classification: A, B, or C (A=Fast moving, B=Medium, C=Slow)
+# - Weight_KG: Physical weight in kilograms
+# - Dimensions: Length, Width, Height in centimeters
+# - Pallet_Qty: Number of units that fit on one pallet
+# - Stackable: TRUE/FALSE - can pallets be stacked
+# - Max_Stack_Height: Maximum number of pallets that can be stacked
+# - Stock Levels: Min/Max/Reorder point for inventory management
+# - Batch_Tracking: TRUE/FALSE - requires batch number tracking
+# - Serial_Tracking: TRUE/FALSE - requires serial number tracking  
+# - Expiry_Tracking: TRUE/FALSE - has expiration date
+# - Shelf_Life_Days: Number of days product remains usable
+
+# PHILIPPINE WMS CONSIDERATIONS:
+# - Use metric measurements (KG, CM)
+# - Consider tropical climate for shelf life
+# - ABC classification for import prioritization
+# - Pallet configuration for standard 1200x1000mm pallets
+# - DOH/FDA requirements for food items expiry tracking

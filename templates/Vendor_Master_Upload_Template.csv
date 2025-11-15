@@ -1,0 +1,28 @@
+# Vendor Master Upload Template - WMS Philippines
+# Vendor/Supplier Master Template
+# Format: CSV (Comma Separated Values)
+# Required fields are marked with *
+
+Vendor_Code*,Vendor_Name*,Contact_Person,Address,Phone,Email,TIN,Payment_Terms,Delivery_Terms,Active*
+V001,ABC Trading Corp,Juan Dela Cruz,456 Supply St. Manila Philippines,+63-2-123-4567,juan@abctrading.com,123-456-789-001,30 Days,FOB Manila,TRUE
+V002,XYZ Manufacturing Inc,Ana Garcia,789 Industrial Ave. Cavite Philippines,+63-46-123-4567,ana@xyzmanuf.com,123-456-789-002,45 Days,CIF Warehouse,TRUE
+V003,Global Imports Ltd,Carlos Reyes,321 Port Area Manila Philippines,+63-2-234-5678,carlos@globalimports.com,123-456-789-003,60 Days,Ex-Works,TRUE
+V004,Local Farm Supplies,Maria Santos,654 Agricultural Zone Laguna Philippines,+63-49-123-4567,maria@localfarm.com,123-456-789-004,15 Days,Delivered,TRUE
+
+# VALIDATION RULES:
+# - Vendor_Code: Must be unique, alphanumeric, max 30 chars
+# - Vendor_Name: Required, max 100 chars
+# - Phone: Philippine format recommended (+63-xx-xxx-xxxx)
+# - Email: Valid email format
+# - TIN: Philippine Tax Identification Number format (xxx-xxx-xxx-xxx)
+# - Payment_Terms: Standard terms (15 Days, 30 Days, 45 Days, 60 Days, COD)
+# - Delivery_Terms: FOB, CIF, Ex-Works, Delivered, etc.
+# - Active: TRUE/FALSE
+
+# PHILIPPINE BUSINESS REQUIREMENTS:
+# - TIN required for all registered suppliers
+# - BIR compliance for tax reporting
+# - Complete address for delivery coordination
+# - Contact person for communication
+# - Payment terms for accounts payable
+# - Delivery terms for logistics planning

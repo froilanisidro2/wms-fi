@@ -1,0 +1,4 @@
+ASN_Number,Vendor_Code,Warehouse_Code,PO_Number,DR_Number,Vendor_Delivery_Note,Expected_Delivery_Date,Notes,Line_Number,Item_Code,Expected_Quantity,Unit_of_Measure,Batch_Number,Manufacturing_Date,Expiry_Date,Pallet_Config_Qty,Special_Instructions
+ASN-20251115-001,V001,WH001,PO-20251115-001,DR-20251115-001,VDN-001,2025-11-16,Sample ASN for incoming rice shipment from ABC Trading,1,ITM-001,200,BAG,BATCH-20251115,2025-11-15,2026-11-15,40,Store in dry area
+ASN-20251115-001,V001,WH001,PO-20251115-001,DR-20251115-001,VDN-001,2025-11-16,Sample ASN for incoming rice shipment from ABC Trading,2,ITM-002,144,BTL,BATCH-20251115,2025-11-15,2027-05-15,48,Handle with care
+ASN-20251115-001,V001,WH001,PO-20251115-001,DR-20251115-001,VDN-001,2025-11-16,Sample ASN for incoming rice shipment from ABC Trading,3,ITM-003,100,SACK,BATCH-20251115,2025-11-15,2028-11-15,20,Heavy items - use forklift

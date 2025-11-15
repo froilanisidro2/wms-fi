@@ -1,0 +1,4 @@
+---
+deploy_hostname: 172.31.39.68
+deploy_username: ubuntu
+deploy_workspace: /services/d-postgrest/expedise_hris_mri_prod

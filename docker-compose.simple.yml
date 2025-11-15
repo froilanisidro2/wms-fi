@@ -1,0 +1,36 @@
+version: '3.8'
+
+# Simplified Docker Compose for WMS-FI with External PostgreSQL
+# This version connects to your local PostgreSQL instance
+
+services:
+  # PostgREST API (connecting to local PostgreSQL)
+  postgrest:
+    image: postgrest/postgrest:v12.0.2
+    container_name: wms-fi-postgrest
+    environment:
+      PGRST_DB_URI: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@host.docker.internal:${DB_PORT:-5433}/${DB_NAME:-wms-fi}
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3000
+      PGRST_DB_SCHEMA: public
+      PGRST_DB_ANON_ROLE: ${DB_USER:-postgres}
+      PGRST_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters}
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Redis for session management and caching
+  redis:
+    image: redis:7-alpine
+    container_name: wms-fi-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:

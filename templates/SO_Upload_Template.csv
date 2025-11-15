@@ -1,0 +1,39 @@
+# SO Upload Template - WMS Philippines
+# Sales Order (SO) Template for Outbound Shipments
+# Format: CSV (Comma Separated Values)
+# Required fields are marked with *
+
+# HEADER INFORMATION
+SO_Number*,Customer_Code*,Warehouse_Code*,Customer_PO,Requested_Delivery_Date*,Delivery_Address*,Delivery_Contact,Delivery_Phone,Priority,Notes
+SO-20251115-001,C001,WH001,CUST-PO-001,2025-11-18,456 Customer Address Manila Philippines,Lisa Santos,+63-2-345-6789,NORMAL,Deliver before 3PM
+
+# LINE ITEMS
+Line_Number*,Item_Code*,Ordered_Quantity*,Unit_Price,Required_Batch,Required_Expiry_After,Special_Instructions
+1,ITM-001,50,45.00,,2025-12-01,FIFO allocation preferred
+2,ITM-002,30,85.00,BATCH-20251115,,Fresh stock only
+3,ITM-003,25,55.00,,,Standard packaging
+
+# VALIDATION RULES:
+# - SO_Number: Must be unique, format: SO-YYYYMMDD-###
+# - Customer_Code: Must exist in customer master
+# - Warehouse_Code: Must exist in warehouse master
+# - Item_Code: Must exist in item master
+# - Ordered_Quantity: Must be > 0
+# - Requested_Delivery_Date: Format YYYY-MM-DD, cannot be in the past
+# - Required_Batch: If specified, must exist in inventory
+# - Required_Expiry_After: Format YYYY-MM-DD, for FEFO allocation
+# - Unit_Price: If blank, will use customer price list
+
+# ALLOCATION STRATEGY:
+# - FEFO (First Expired First Out): If Required_Expiry_After is specified
+# - FIFO (First In First Out): Default allocation method
+# - Batch Specific: If Required_Batch is specified
+
+# PROCESS FLOW:
+# 1. Upload SO Template → System validates data
+# 2. Allocation Engine → Apply FEFO/FIFO rules, check inventory
+# 3. Generate Pick List → Print for warehouse staff
+# 4. Picking Process → Scan items, update actual picked quantities
+# 5. Pick Confirmation → Verify picked quantities
+# 6. Generate Issuance Gate Pass → Authorization for shipping
+# 7. Generate Loading Checklist → Final dispatch verification
