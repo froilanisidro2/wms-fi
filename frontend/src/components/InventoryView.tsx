@@ -83,7 +83,7 @@ const InventoryView: React.FC = () => {
   });
 
   // Column definitions for AG Grid
-  const columnDefs: ColDef[] = useMemo(() => [
+  const columnDefs: any[] = useMemo(() => [
     {
       headerName: 'Item Code',
       field: 'item_code',

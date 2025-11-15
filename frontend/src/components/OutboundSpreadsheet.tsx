@@ -84,7 +84,7 @@ const OutboundSpreadsheet: React.FC = () => {
   const [headerDialogOpen, setHeaderDialogOpen] = useState(false);
 
   // Column definitions for AG Grid
-  const columnDefs: ColDef[] = useMemo(() => [
+  const columnDefs: any[] = useMemo(() => [
     {
       headerName: 'Line #',
       field: 'line_number',
