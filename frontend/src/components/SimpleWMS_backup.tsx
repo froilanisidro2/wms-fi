@@ -192,7 +192,7 @@ const SimpleInbound = () => {
   const [putawayForm, setPutawayForm] = useState<{visible: boolean, data: ASNRow | null, selectedBin: string, scannerActive: boolean}>({visible: false, data: null, selectedBin: '', scannerActive: false});
   
   // QR Scanner state
-  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
   
   // Available bin locations
   const availableBins = [
@@ -547,8 +547,19 @@ const SimpleInbound = () => {
     window.print();
   };
 
+  // Putaway form functions
+  const handlePutawayForm = (rowData: ASNRow) => {
+    setPutawayForm({visible: true, data: rowData, selectedBin: '', scannerActive: false});
+  };
+
+  // Close putaway form
+  const closePutawayForm = () => {
+    setPutawayForm({visible: false, data: null, selectedBin: '', scannerActive: false});
+  };
+
   // Generate QR code data URL
   const generateQRCode = (data: string): string => {
+    // Simple QR code generation using Google Charts API as fallback
     const encodedData = encodeURIComponent(data);
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodedData}`;
   };
@@ -566,28 +577,50 @@ const SimpleInbound = () => {
     });
   };
 
-  // Putaway form functions
-  const handlePutawayForm = (rowData: ASNRow) => {
-    setPutawayForm({visible: true, data: rowData, selectedBin: '', scannerActive: false});
+  // Scanner functions
+  const startScanner = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      setCameraPermission(true);
+      setPutawayForm({...putawayForm, scannerActive: true});
+      
+      // In a real implementation, you'd use a QR scanner library like 'react-qr-scanner'
+      // For demo purposes, we'll simulate scanning
+      setTimeout(() => {
+        // Simulate successful scan of bin A01-01-01
+        const scannedBinData = JSON.stringify({
+          type: "bin_location",
+          bin_id: "A01-01-01",
+          zone: "A",
+          capacity: "1000kg",
+          status: "available"
+        });
+        handleQRScan(scannedBinData);
+      }, 2000);
+      
+    } catch (err) {
+      setCameraPermission(false);
+      alert('Camera permission denied or not available. Please use manual selection.');
+    }
   };
 
-  // Close putaway form
-  const closePutawayForm = () => {
-    setPutawayForm({visible: false, data: null, selectedBin: '', scannerActive: false});
-    setShowQRScanner(false);
+  const handleQRScan = (scannedData: string) => {
+    try {
+      const data = JSON.parse(scannedData);
+      if (data.type === 'bin_location') {
+        setPutawayForm({...putawayForm, selectedBin: data.bin_id, scannerActive: false});
+        alert(`Bin location scanned: ${data.bin_id}`);
+      } else {
+        alert('Invalid QR code. Please scan a bin location QR code.');
+      }
+    } catch (err) {
+      alert('Unable to read QR code data.');
+    }
   };
 
-  // Simulate QR code scanning for bin locations
-  const simulateQRScan = (binCode: string) => {
-    setPutawayForm({...putawayForm, selectedBin: binCode});
-    setShowQRScanner(false);
-    
-    // Show confirmation message
-    alert(`QR Scanned! Bin location "${binCode}" selected.`);
+  const stopScanner = () => {
+    setPutawayForm({...putawayForm, scannerActive: false});
   };
-
-  // Execute putaway
-  const executePutaway = () => {
     if (!putawayForm.selectedBin) {
       alert('Please select a bin location.');
       return;
@@ -609,6 +642,71 @@ const SimpleInbound = () => {
     setAsnGridData(updatedData);
     alert(`Item successfully put away to bin: ${putawayForm.selectedBin}`);
     closePutawayForm();
+  };
+
+  // Generate QR code data URL
+  const generateQRCode = (data: string): string => {
+    // Simple QR code generation using Google Charts API as fallback
+    const encodedData = encodeURIComponent(data);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodedData}`;
+  };
+
+  // Generate pallet QR data
+  const generatePalletQRData = (rowData: ASNRow): string => {
+    return JSON.stringify({
+      type: "pallet",
+      pallet_id: rowData.PALLET_ID,
+      asn_code: rowData.ASN_CODE,
+      item_code: rowData.ITEM_CODE,
+      quantity: rowData.ITEM_QTY_KG,
+      uom: rowData.UOM,
+      supplier: rowData.SUPPLIER
+    });
+  };
+
+  // Scanner functions
+  const startScanner = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      setCameraPermission(true);
+      setPutawayForm({...putawayForm, scannerActive: true});
+      
+      // In a real implementation, you'd use a QR scanner library like 'react-qr-scanner'
+      // For demo purposes, we'll simulate scanning
+      setTimeout(() => {
+        // Simulate successful scan of bin A01-01-01
+        const scannedBinData = JSON.stringify({
+          type: "bin_location",
+          bin_id: "A01-01-01",
+          zone: "A",
+          capacity: "1000kg",
+          status: "available"
+        });
+        handleQRScan(scannedBinData);
+      }, 2000);
+      
+    } catch (err) {
+      setCameraPermission(false);
+      alert('Camera permission denied or not available. Please use manual selection.');
+    }
+  };
+
+  const handleQRScan = (scannedData: string) => {
+    try {
+      const data = JSON.parse(scannedData);
+      if (data.type === 'bin_location') {
+        setPutawayForm({...putawayForm, selectedBin: data.bin_id, scannerActive: false});
+        alert(`Bin location scanned: ${data.bin_id}`);
+      } else {
+        alert('Invalid QR code. Please scan a bin location QR code.');
+      }
+    } catch (err) {
+      alert('Unable to read QR code data.');
+    }
+  };
+
+  const stopScanner = () => {
+    setPutawayForm({...putawayForm, scannerActive: false});
   };
 
   // Function to handle keyboard shortcuts
@@ -1444,24 +1542,72 @@ const SimpleInbound = () => {
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
                   Select Bin Location: *
                 </label>
-                <select 
-                  value={putawayForm.selectedBin}
-                  onChange={(e) => setPutawayForm({...putawayForm, selectedBin: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '2px solid #ddd',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    backgroundColor: 'white',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value="">-- Select Available Bin --</option>
-                  {availableBins.map(bin => (
-                    <option key={bin} value={bin}>{bin}</option>
-                  ))}
-                </select>
+                
+                {/* QR Scanner Interface */}
+                {putawayForm.scannerActive ? (
+                  <div style={{ 
+                    border: '2px dashed #ff9800', 
+                    borderRadius: '8px', 
+                    padding: '20px', 
+                    textAlign: 'center', 
+                    backgroundColor: '#fff8e1',
+                    marginBottom: '15px'
+                  }}>
+                    <div style={{ fontSize: '48px', marginBottom: '10px' }}>📱</div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ff9800', marginBottom: '5px' }}>Scanning for Bin QR Code...</div>
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>Point your camera at the bin location QR code</div>
+                    <button 
+                      onClick={stopScanner}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#666',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Cancel Scan
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                    <select 
+                      value={putawayForm.selectedBin}
+                      onChange={(e) => setPutawayForm({...putawayForm, selectedBin: e.target.value})}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        border: '2px solid #ddd',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        backgroundColor: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">-- Select Available Bin --</option>
+                      {availableBins.map(bin => (
+                        <option key={bin} value={bin}>{bin}</option>
+                      ))}
+                    </select>
+                    <button 
+                      onClick={startScanner}
+                      style={{
+                        padding: '10px 15px',
+                        backgroundColor: '#2196f3',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      📷 Scan QR
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Bin Location Guide */}
@@ -1469,89 +1615,6 @@ const SimpleInbound = () => {
                 <strong>Bin Format:</strong> Zone-Aisle-Level (e.g., A01-01-01)
                 <br />
                 <strong>Zone A:</strong> Fast-moving items | <strong>Zone B:</strong> Medium-moving | <strong>Zone C:</strong> Slow-moving
-              </div>
-
-              {/* QR Scanner Section */}
-              <div style={{ marginBottom: '20px', padding: '15px', border: '2px dashed #2196f3', borderRadius: '8px', backgroundColor: '#f8f9fa' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span style={{ fontWeight: 'bold', color: '#2196f3' }}>📱 Quick Scan Bin Location</span>
-                  <button 
-                    onClick={() => setShowQRScanner(!showQRScanner)}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: showQRScanner ? '#ff5722' : '#2196f3',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    {showQRScanner ? '❌ Close Scanner' : '📷 Open QR Scanner'}
-                  </button>
-                </div>
-                
-                {showQRScanner && (
-                  <div style={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #ddd', 
-                    borderRadius: '6px', 
-                    padding: '15px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{ 
-                      backgroundColor: '#263238', 
-                      color: 'white', 
-                      padding: '60px 20px', 
-                      borderRadius: '4px',
-                      marginBottom: '10px',
-                      border: '3px solid #2196f3',
-                      position: 'relative'
-                    }}>
-                      <div style={{ fontSize: '16px', marginBottom: '10px' }}>📹 Camera View</div>
-                      <div style={{ fontSize: '12px', opacity: 0.8 }}>Position QR code within frame</div>
-                      
-                      {/* Scanning frame overlay */}
-                      <div style={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        width: '80px',
-                        height: '80px',
-                        border: '3px solid #00e676',
-                        borderRadius: '8px',
-                        boxShadow: '0 0 0 2px rgba(0, 230, 118, 0.3)'
-                      }} />
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      {/* Demo scan buttons for available bins */}
-                      {availableBins.slice(0, 3).map(bin => (
-                        <button
-                          key={bin}
-                          onClick={() => simulateQRScan(bin)}
-                          style={{
-                            padding: '8px 12px',
-                            backgroundColor: '#4caf50',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '11px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          📱 Demo Scan: {bin}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    <div style={{ marginTop: '10px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                      Demo: Click buttons above to simulate QR code scanning
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Action Buttons */}
