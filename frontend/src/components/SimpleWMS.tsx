@@ -185,6 +185,21 @@ const SimpleInbound = () => {
   // Focus tracking for paste functionality
   const [focusedCell, setFocusedCell] = useState<{rowIndex: number, columnIndex: number} | null>(null);
   
+  // Print preview state
+  const [printPreview, setPrintPreview] = useState<{visible: boolean, data: ASNRow | null}>({visible: false, data: null});
+  
+  // Putaway form state
+  const [putawayForm, setPutawayForm] = useState<{visible: boolean, data: ASNRow | null, selectedBin: string}>({visible: false, data: null, selectedBin: ''});
+  
+  // Available bin locations
+  const availableBins = [
+    'A01-01-01', 'A01-01-02', 'A01-01-03', 'A01-02-01', 'A01-02-02',
+    'A02-01-01', 'A02-01-02', 'A02-02-01', 'A02-02-02', 'A02-03-01',
+    'B01-01-01', 'B01-01-02', 'B01-02-01', 'B01-02-02', 'B01-03-01',
+    'B02-01-01', 'B02-01-02', 'B02-02-01', 'B02-02-02', 'B02-03-01',
+    'C01-01-01', 'C01-01-02', 'C01-02-01', 'C01-02-02', 'C01-03-01'
+  ];
+  
   // Suppliers data for autocomplete
   const suppliers = [
     {
@@ -514,6 +529,56 @@ const SimpleInbound = () => {
     }
   };
 
+  // Print preview function
+  const handlePrintPreview = (rowData: ASNRow) => {
+    setPrintPreview({visible: true, data: rowData});
+  };
+
+  // Close print preview
+  const closePrintPreview = () => {
+    setPrintPreview({visible: false, data: null});
+  };
+
+  // Print function
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Putaway form functions
+  const handlePutawayForm = (rowData: ASNRow) => {
+    setPutawayForm({visible: true, data: rowData, selectedBin: ''});
+  };
+
+  // Close putaway form
+  const closePutawayForm = () => {
+    setPutawayForm({visible: false, data: null, selectedBin: ''});
+  };
+
+  // Execute putaway
+  const executePutaway = () => {
+    if (!putawayForm.selectedBin) {
+      alert('Please select a bin location.');
+      return;
+    }
+    
+    // Update the row with the selected bin location
+    const updatedData = asnGridData.map(row => {
+      if (row.ASN_CODE === putawayForm.data?.ASN_CODE && row.PALLET_ID === putawayForm.data?.PALLET_ID) {
+        return {
+          ...row,
+          PALLET_CONFIG: `${putawayForm.selectedBin} - ${row.PALLET_CONFIG || 'Standard'}`,
+          UPDATE_TIME: new Date().toLocaleString(),
+          isSaved: false
+        };
+      }
+      return row;
+    });
+    
+    setAsnGridData(updatedData);
+    alert(`Item successfully put away to bin: ${putawayForm.selectedBin}`);
+    closePutawayForm();
+  };
+
   // Function to handle keyboard shortcuts
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Only handle keyboard shortcuts if the event is not from an input field
@@ -821,7 +886,7 @@ const SimpleInbound = () => {
             
             <Alert severity="success" sx={{ mb: 2 }}>
               🎯 Enhanced Excel-like table: Click cells to edit, use checkboxes to select rows, filter by status, Ctrl+V to paste from Excel!
-              <br />📋 Visual Indicators: Orange border = Draft, Green border = Complete, Blue background = Selected
+              <br />📋 Visual Indicators: Orange border = Draft, Blue background = Receiving, Yellow border = PutAway, Green border = Completed
             </Alert>
             
             <Box 
@@ -876,7 +941,7 @@ const SimpleInbound = () => {
                     <th>Item Code</th>
                     <th>Item Description</th>
                     <th>Item Qty</th>
-                    <th>UOM</th>
+                    <th>ASN UOM</th>
                     <th>Actual Qty</th>
                     <th>Item Weight (KG)</th>
                     <th>Pallet Config</th>
@@ -902,18 +967,35 @@ const SimpleInbound = () => {
                     );
                     
                     const isDraft = row.ASN_STATUS === 'Draft';
+                    const isReceiving = row.ASN_STATUS === 'Receiving';
+                    const isPutAway = row.ASN_STATUS === 'PutAway';
+                    const isCompleted = row.ASN_STATUS === 'Completed';
                     const rowIdentifier = `${row.PALLET_ID || row._tempId || 'temp'}-${originalIndex}`;
                     const isSelected = selectedRows.includes(rowIdentifier);
-                    const bgColor = isSelected ? '#e3f2fd' : 
-                                   isDraft ? '#fff3e0' : 
-                                   filteredIndex % 2 === 0 ? '#fafafa' : 'white';
+                    
+                    // Determine background color and border
+                    let bgColor = filteredIndex % 2 === 0 ? '#fafafa' : 'white';
+                    let borderStyle = '4px solid transparent';
+                    
+                    if (isSelected) {
+                      bgColor = '#e3f2fd'; // Blue background for selected
+                    }
+                    
+                    // Set border colors based on status
+                    if (isDraft) {
+                      borderStyle = '4px solid #ff9800'; // Orange border for Draft
+                    } else if (isReceiving) {
+                      borderStyle = '4px solid #2196f3'; // Blue border for Receiving
+                    } else if (isPutAway) {
+                      borderStyle = '4px solid #ffeb3b'; // Yellow border for PutAway
+                    } else if (isCompleted) {
+                      borderStyle = '4px solid #4caf50'; // Green border for Completed
+                    }
                     
                     return (
                       <tr key={rowIdentifier} style={{ 
                         backgroundColor: bgColor,
-                        borderLeft: isDraft ? '4px solid #ff9800' : 
-                                   row.ASN_STATUS === 'Complete' ? '4px solid #4caf50' : 
-                                   '4px solid transparent'
+                        borderLeft: borderStyle
                       }}>
                         {/* Selection Checkbox with Save Status */}
                         <td style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -933,6 +1015,68 @@ const SimpleInbound = () => {
                           >
                             {row.isSaved ? '✓' : '●'}
                           </span>
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: row.ASN_STATUS === 'Receiving' ? 'pointer' : 'not-allowed',
+                              color: row.ASN_STATUS === 'Receiving' ? '#1976d2' : '#ccc',
+                              fontSize: '14px',
+                              padding: '2px',
+                              opacity: row.ASN_STATUS === 'Receiving' ? 1 : 0.5
+                            }}
+                            disabled={row.ASN_STATUS !== 'Receiving'}
+                            onClick={() => {
+                              if (row.ASN_STATUS === 'Receiving') {
+                                handlePrintPreview(row);
+                              }
+                            }}
+                            title={row.ASN_STATUS === 'Receiving' ? 'Print ASN' : 'Print only available for Receiving status'}
+                          >
+                            🖨️
+                          </button>
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: row.ASN_STATUS === 'PutAway' ? 'pointer' : 'not-allowed',
+                              color: row.ASN_STATUS === 'PutAway' ? '#ff9800' : '#ccc',
+                              fontSize: '14px',
+                              padding: '2px',
+                              marginLeft: '2px',
+                              opacity: row.ASN_STATUS === 'PutAway' ? 1 : 0.5
+                            }}
+                            disabled={row.ASN_STATUS !== 'PutAway'}
+                            onClick={() => {
+                              if (row.ASN_STATUS === 'PutAway') {
+                                handlePutawayForm(row);
+                              }
+                            }}
+                            title={row.ASN_STATUS === 'PutAway' ? 'PutAway Process' : 'PutAway only available for PutAway status'}
+                          >
+                            📦
+                          </button>
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: row.ASN_STATUS === 'Completed' ? 'pointer' : 'not-allowed',
+                              color: row.ASN_STATUS === 'Completed' ? '#4caf50' : '#ccc',
+                              fontSize: '14px',
+                              padding: '2px',
+                              marginLeft: '2px',
+                              opacity: row.ASN_STATUS === 'Completed' ? 1 : 0.5
+                            }}
+                            disabled={row.ASN_STATUS !== 'Completed'}
+                            onClick={() => {
+                              if (row.ASN_STATUS === 'Completed') {
+                                alert(`Issuance Gatepass for ASN: ${row.ASN_CODE}`);
+                              }
+                            }}
+                            title={row.ASN_STATUS === 'Completed' ? 'Issuance Gatepass' : 'Gatepass only available for Completed status'}
+                          >
+                            📋
+                          </button>
                         </td>
                       {/* ASN Status */}
                       <td><select value={row.ASN_STATUS || ''} onChange={(e) => {
@@ -940,10 +1084,9 @@ const SimpleInbound = () => {
                       }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 0})} style={{ width: '100%', border: 'none', padding: '2px' }}>
                         <option value="">-</option>
                         <option value="Draft">Draft</option>
-                        <option value="In Progress">In Progress</option>
                         <option value="Receiving">Receiving</option>
-                        <option value="Complete">Complete</option>
-                        <option value="On Hold">On Hold</option>
+                        <option value="PutAway">PutAway</option>
+                        <option value="Completed">Completed</option>
                       </select></td>
                       
                       {/* Create Time */}
@@ -1065,6 +1208,260 @@ const SimpleInbound = () => {
             </Box>
           </CardContent>
         </Card>
+
+        {/* Print Preview Modal */}
+        {printPreview.visible && printPreview.data && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '30px',
+              borderRadius: '8px',
+              maxWidth: '800px',
+              width: '90%',
+              maxHeight: '90%',
+              overflow: 'auto'
+            }}>
+              {/* Print Preview Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', printDisplay: 'none' }}>
+                <h2 style={{ margin: 0 }}>Print Preview</h2>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={handlePrint}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#1976d2',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🖨️ Print
+                  </button>
+                  <button 
+                    onClick={closePrintPreview}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#666',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              {/* Print Document */}
+              <div id="print-content" style={{
+                fontFamily: 'Arial, sans-serif',
+                lineHeight: '1.4'
+              }}>
+                {/* Document Title */}
+                <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
+                  <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold' }}>ADVANCE SHIP NOTICE (ASN)</h1>
+                  <div style={{ fontSize: '16px', color: '#666' }}>Receiving Document</div>
+                </div>
+
+                {/* ASN Header Information */}
+                <div style={{ marginBottom: '30px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                    <tr>
+                      <td style={{ padding: '8px 0', fontWeight: 'bold', width: '120px' }}>ASN Code:</td>
+                      <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd' }}>{printPreview.data.ASN_CODE || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Supplier:</td>
+                      <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd' }}>{printPreview.data.SUPPLIER || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '8px 0', fontWeight: 'bold' }}>PO No:</td>
+                      <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd' }}>{printPreview.data.PO_NO || 'N/A'}</td>
+                    </tr>
+                  </table>
+                </div>
+
+                {/* Items Table */}
+                <div style={{ marginBottom: '40px' }}>
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', fontWeight: 'bold' }}>Items to Receive:</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f5f5f5' }}>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>Item Code</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>Item Description</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>Item Qty</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>ASN UOM</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>Actual Qty</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>Pallet ID</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>MFG Date</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>EXP Date</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold' }}>Batch No</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: '8px', fontSize: '12px' }}>{printPreview.data.ITEM_CODE || 'N/A'}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', fontSize: '12px' }}>{printPreview.data.ITEM_DESCRIPTION || 'N/A'}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>{printPreview.data.ITEM_QTY_KG || 'N/A'}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>{printPreview.data.UOM || 'N/A'}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>&nbsp;</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', fontSize: '12px' }}>{printPreview.data.PALLET_ID || 'N/A'}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>&nbsp;</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>&nbsp;</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', fontSize: '12px' }}>&nbsp;</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Signature Area */}
+                <div style={{ marginTop: '50px', paddingTop: '20px', borderTop: '1px solid #ddd' }}>
+                  <h3 style={{ margin: '0 0 30px 0', fontSize: '16px', fontWeight: 'bold' }}>Operator Verification:</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
+                    <div style={{ width: '45%' }}>
+                      <div style={{ borderBottom: '1px solid #000', height: '60px', marginBottom: '5px' }}></div>
+                      <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>Received By (Signature)</div>
+                    </div>
+                    <div style={{ width: '45%' }}>
+                      <div style={{ borderBottom: '1px solid #000', height: '60px', marginBottom: '5px' }}></div>
+                      <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>Date & Time</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '10px', color: '#666' }}>
+                  <p>This document serves as proof of receipt for the above mentioned items.</p>
+                  <p>Please ensure all items are inspected before signing.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Putaway Form Modal */}
+        {putawayForm.visible && putawayForm.data && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '30px',
+              borderRadius: '8px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '90%',
+              overflow: 'auto'
+            }}>
+              {/* Putaway Form Header */}
+              <div style={{ marginBottom: '20px' }}>
+                <h2 style={{ margin: '0 0 10px 0', color: '#ff9800' }}>📦 PutAway Process</h2>
+                <div style={{ fontSize: '14px', color: '#666', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                  <strong>ASN:</strong> {putawayForm.data.ASN_CODE} | <strong>Item:</strong> {putawayForm.data.ITEM_CODE} - {putawayForm.data.ITEM_DESCRIPTION}
+                </div>
+              </div>
+
+              {/* Item Information */}
+              <div style={{ marginBottom: '20px', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '4px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#333' }}>Item Details:</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
+                  <div><strong>Pallet ID:</strong> {putawayForm.data.PALLET_ID}</div>
+                  <div><strong>Quantity:</strong> {putawayForm.data.ITEM_QTY_KG} {putawayForm.data.UOM}</div>
+                  <div><strong>Weight:</strong> {putawayForm.data.ITEM_WEIGHT_KG} KG</div>
+                  <div><strong>Supplier:</strong> {putawayForm.data.SUPPLIER}</div>
+                </div>
+              </div>
+
+              {/* Bin Location Selection */}
+              <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
+                  Select Bin Location: *
+                </label>
+                <select 
+                  value={putawayForm.selectedBin}
+                  onChange={(e) => setPutawayForm({...putawayForm, selectedBin: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '2px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    backgroundColor: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Select Available Bin --</option>
+                  {availableBins.map(bin => (
+                    <option key={bin} value={bin}>{bin}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Bin Location Guide */}
+              <div style={{ marginBottom: '20px', fontSize: '12px', color: '#666' }}>
+                <strong>Bin Format:</strong> Zone-Aisle-Level (e.g., A01-01-01)
+                <br />
+                <strong>Zone A:</strong> Fast-moving items | <strong>Zone B:</strong> Medium-moving | <strong>Zone C:</strong> Slow-moving
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                <button 
+                  onClick={closePutawayForm}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#666',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={executePutaway}
+                  disabled={!putawayForm.selectedBin}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: putawayForm.selectedBin ? '#ff9800' : '#ccc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: putawayForm.selectedBin ? 'pointer' : 'not-allowed',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  📦 Execute PutAway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
 
     </Box>
