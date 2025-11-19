@@ -23,11 +23,14 @@ import {
   TableRow,
   Chip,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField
+  TextField,
+  Autocomplete,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
 import {
   Inventory,
@@ -36,7 +39,10 @@ import {
   Assessment,
   Business,
   Settings,
-  Add
+  Add,
+  Delete,
+  Search,
+  Clear
 } from '@mui/icons-material';
 import ASNManagement from './ASNManagement';
 
@@ -166,14 +172,46 @@ const SimpleInbound = () => {
   // Enhanced state for smart grid management
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showOnlyDrafts, setShowOnlyDrafts] = useState(false);
-  const [selectedRows, setSelectedRows] = useState<number[]>([]);
-  const [showAddRowDialog, setShowAddRowDialog] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [rowsToAdd, setRowsToAdd] = useState(1);
+  const [lastAddedRowsCount, setLastAddedRowsCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [asnBatchCounter, setAsnBatchCounter] = useState(1); // Track ASN batch number
+  const [defaultSupplier, setDefaultSupplier] = useState('');
+  const [defaultPONumber, setDefaultPONumber] = useState('');
+  
+  // Focus tracking for paste functionality
+  const [focusedCell, setFocusedCell] = useState<{rowIndex: number, columnIndex: number} | null>(null);
+  
+  // Suppliers data for autocomplete
+  const suppliers = [
+    {
+      id: 1,
+      supplier_code: 'SUPP001',
+      supplier_name: 'Philippine Medical Supplies Inc.'
+    },
+    {
+      id: 2,
+      supplier_code: 'SUPP002',
+      supplier_name: 'Metro Food Distributors'
+    },
+    {
+      id: 3,
+      supplier_code: 'SUPP003',
+      supplier_name: 'ABC Trading Corp'
+    },
+    {
+      id: 4,
+      supplier_code: 'SUPP004',
+      supplier_name: 'Fresh Market Ltd'
+    }
+  ];
   
   // ASN Grid data for spreadsheet-style entry
   const [asnGridData, setAsnGridData] = useState<ASNRow[]>([
     {
-      ID: 1,
       ASN_CODE: 'ASN-20251118-001',
       ASN_STATUS: 'In Progress',
       SUPPLIER: 'ABC Trading Corp',
@@ -191,16 +229,14 @@ const SimpleInbound = () => {
       MFG_DATE: '2025-10-15',
       EXP_DATE: '2026-10-15',
       BATCH_NO: 'BATCH-20251015-001',
-      SORTED_QTY: 24.8,
       SHORTAGE_QTY: 0.2,
       MORE_QTY: 0,
       DAMAGE_QTY: 0,
-      ITEM_VOLUME: 0.042,
       ITEM_COST: 45.50,
-      GOODS_REMARKS: 'Good condition'
+      GOODS_REMARKS: 'Good condition',
+      isSaved: true // Existing record, already in database
     },
     {
-      ID: 2,
       ASN_CODE: 'ASN-20251118-002',
       ASN_STATUS: 'Receiving',
       SUPPLIER: 'Metro Food Supply',
@@ -218,16 +254,14 @@ const SimpleInbound = () => {
       MFG_DATE: '2025-11-01',
       EXP_DATE: '2026-11-01',
       BATCH_NO: 'BATCH-20251101-002',
-      SORTED_QTY: 1.0,
       SHORTAGE_QTY: 0,
       MORE_QTY: 0,
       DAMAGE_QTY: 0,
-      ITEM_VOLUME: 0.001,
       ITEM_COST: 3.25,
-      GOODS_REMARKS: 'Perfect condition'
+      GOODS_REMARKS: 'Perfect condition',
+      isSaved: true // Existing record, already in database
     },
     {
-      ID: 3,
       ASN_CODE: 'ASN-20251118-003',
       ASN_STATUS: 'Complete',
       SUPPLIER: 'Fresh Market Ltd',
@@ -245,42 +279,13 @@ const SimpleInbound = () => {
       MFG_DATE: '2025-11-10',
       EXP_DATE: '2027-11-10',
       BATCH_NO: 'BATCH-20251110-003',
-      SORTED_QTY: 50.0,
       SHORTAGE_QTY: 0,
       MORE_QTY: 0,
       DAMAGE_QTY: 0,
-      ITEM_VOLUME: 0.035,
       ITEM_COST: 28.75,
-      GOODS_REMARKS: 'Excellent quality'
-    },
-    // Add empty rows for new entries
-    ...Array(10).fill(null).map((_, index) => ({
-      ID: 4 + index,
-      ASN_CODE: '',
-      ASN_STATUS: '',
-      SUPPLIER: '',
-      PO_NO: '',
-      CREATE_TIME: '',
-      UPDATE_TIME: '',
-      ITEM_CODE: '',
-      ITEM_DESCRIPTION: '',
-      ITEM_QTY_KG: undefined,
-      UOM: '',
-      ACTUAL_QTY: undefined,
-      ITEM_WEIGHT_KG: undefined,
-      PALLET_CONFIG: '',
-      PALLET_ID: '',
-      MFG_DATE: '',
-      EXP_DATE: '',
-      BATCH_NO: '',
-      SORTED_QTY: undefined,
-      SHORTAGE_QTY: undefined,
-      MORE_QTY: undefined,
-      DAMAGE_QTY: undefined,
-      ITEM_VOLUME: undefined,
-      ITEM_COST: undefined,
-      GOODS_REMARKS: ''
-    }))
+      GOODS_REMARKS: 'Excellent quality',
+      isSaved: true // Existing record, already in database
+    }
   ]);
 
   // AG Grid column definitions for ASN spreadsheet with comprehensive inbound fields
@@ -309,73 +314,146 @@ const SimpleInbound = () => {
     { field: 'MFG_DATE', headerName: 'MFG Date', width: 120, editable: true },
     { field: 'EXP_DATE', headerName: 'EXP Date', width: 120, editable: true },
     { field: 'BATCH_NO', headerName: 'Batch No', width: 130, editable: true },
-    { field: 'SORTED_QTY', headerName: 'Sorted Qty', width: 120, editable: true, type: 'numericColumn' },
     { field: 'SHORTAGE_QTY', headerName: 'Shortage Qty', width: 130, editable: true, type: 'numericColumn' },
     { field: 'MORE_QTY', headerName: 'More Qty', width: 120, editable: true, type: 'numericColumn' },
     { field: 'DAMAGE_QTY', headerName: 'Damage Qty', width: 130, editable: true, type: 'numericColumn' },
-    { field: 'ITEM_VOLUME', headerName: 'Item Volume', width: 120, editable: true, type: 'numericColumn' },
     { field: 'ITEM_COST', headerName: 'Item Cost', width: 120, editable: true, type: 'numericColumn' },
     { field: 'GOODS_REMARKS', headerName: 'Goods Remarks', width: 200, editable: true }
   ];
 
-  // Function to generate unique pallet ID with timestamp
-  const generatePalletId = (index = 0) => {
+  // Helper function to get today's date string
+  const getTodayDateString = () => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    const hour = String(now.getHours()).padStart(2, '0');
-    const minute = String(now.getMinutes()).padStart(2, '0');
-    const second = String(now.getSeconds()).padStart(2, '0');
-    return `PLT-${year}${month}${day}${hour}${minute}${second}${index.toString().padStart(2, '0')}`;
+    return { fullDate: `${year}${month}${day}`, shortDate: `${year.toString().slice(-2)}${month}${day}` };
   };
 
-  // Function to add rows to the top of the grid
+  // Function to get next ASN increment for today
+  const getNextASNIncrement = () => {
+    const { fullDate } = getTodayDateString();
+    const todayASNs = asnGridData.filter(row => 
+      row.ASN_CODE && row.ASN_CODE.startsWith(`ASN${fullDate}`)
+    );
+    
+    if (todayASNs.length === 0) return 1;
+    
+    // Extract the highest increment from existing ASN codes for today
+    const increments = todayASNs.map(row => {
+      const match = row.ASN_CODE?.match(/ASN\d{8}(\d+)$/);
+      return match ? parseInt(match[1]) : 0;
+    });
+    
+    return Math.max(...increments) + 1;
+  };
+
+  // Function to get next Pallet increment for today
+  const getNextPalletIncrement = () => {
+    const { shortDate } = getTodayDateString();
+    const todayPallets = asnGridData.filter(row => 
+      row.PALLET_ID && row.PALLET_ID.startsWith(`PLT${shortDate}`)
+    );
+    
+    if (todayPallets.length === 0) return 1;
+    
+    // Extract the highest increment from existing pallet IDs for today
+    const increments = todayPallets.map(row => {
+      const match = row.PALLET_ID?.match(/PLT\d{6}(\d+)$/);
+      return match ? parseInt(match[1]) : 0;
+    });
+    
+    return Math.max(...increments) + 1;
+  };
+
+  // Function to generate ASN Code: ASN+YYYYMMDD+batch_number
+  const generateASNCode = () => {
+    const { fullDate } = getTodayDateString();
+    return `ASN${fullDate}${asnBatchCounter}`;
+  };
+
+  // Function to generate Pallet ID: PLT+YYMMDD+increment
+  const generatePalletId = (startingIncrement = 0) => {
+    const { shortDate } = getTodayDateString();
+    const baseIncrement = getNextPalletIncrement();
+    const increment = baseIncrement + startingIncrement;
+    return `PLT${shortDate}${increment}`;
+  };
+
+  // Function to add rows directly to the top of the grid
   const handleAddRows = () => {
-    setShowAddRowDialog(true);
-  };
-
-  // Function to confirm adding rows
-  const confirmAddRows = () => {
-    const maxId = Math.max(...asnGridData.map(row => row.ID || 0));
-    const newRows = Array.from({ length: rowsToAdd }, (_, index) => ({
-      ID: maxId + 1 + index,
-      ASN_CODE: `ASN-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(maxId + 1 + index).padStart(3, '0')}`,
-      ASN_STATUS: 'Draft',
-      SUPPLIER: '',
-      PO_NO: '',
-      CREATE_TIME: new Date().toLocaleString(),
-      UPDATE_TIME: new Date().toLocaleString(),
-      ITEM_CODE: '',
-      ITEM_DESCRIPTION: '',
-      ITEM_QTY_KG: undefined,
-      UOM: 'KG',
-      ACTUAL_QTY: undefined,
-      ITEM_WEIGHT_KG: undefined,
-      PALLET_CONFIG: '',
-      PALLET_ID: generatePalletId(index),
-      MFG_DATE: '',
-      EXP_DATE: '',
-      BATCH_NO: '',
-      SORTED_QTY: undefined,
-      SHORTAGE_QTY: undefined,
-      MORE_QTY: undefined,
-      DAMAGE_QTY: undefined,
-      ITEM_VOLUME: undefined,
-      ITEM_COST: undefined,
-      GOODS_REMARKS: ''
-    }));
+    // Generate single ASN code for this batch
+    const batchASNCode = generateASNCode();
+    
+    const newRows = Array.from({ length: rowsToAdd }, (_, index) => {
+      const uniquePalletId = generatePalletId(index);
+      return {
+        ASN_CODE: batchASNCode, // Same ASN code for all rows in this batch
+        ASN_STATUS: 'Draft',
+        SUPPLIER: defaultSupplier, // Use default supplier
+        PO_NO: defaultPONumber,   // Use default PO number
+        CREATE_TIME: new Date().toLocaleString(),
+        UPDATE_TIME: new Date().toLocaleString(),
+        ITEM_CODE: '',
+        ITEM_DESCRIPTION: '',
+        ITEM_QTY_KG: undefined,
+        UOM: 'KG',
+        ACTUAL_QTY: undefined,
+        ITEM_WEIGHT_KG: undefined,
+        PALLET_CONFIG: '',
+        PALLET_ID: uniquePalletId, // Unique pallet ID for each row
+        MFG_DATE: '',
+        EXP_DATE: '',
+        BATCH_NO: '',
+        SHORTAGE_QTY: undefined,
+        MORE_QTY: undefined,
+        DAMAGE_QTY: undefined,
+        ITEM_COST: undefined,
+        GOODS_REMARKS: '',
+        isSaved: false, // New record, not saved in database yet
+        _tempId: `${Date.now()}-${index}` // Temporary unique identifier for proper indexing
+      };
+    });
     
     // Add new rows at the beginning of the array
     setAsnGridData([...newRows, ...asnGridData]);
-    setShowAddRowDialog(false);
+    setLastAddedRowsCount(rowsToAdd); // Track how many rows were added
+    setAsnBatchCounter(prev => prev + 1); // Increment batch counter for next add operation
     setRowsToAdd(1);
+  };
+
+  // Function to remove the last added rows
+  const handleRemoveRows = () => {
+    if (lastAddedRowsCount === 0) {
+      alert('No recently added rows to remove!');
+      return;
+    }
+    
+    const rowsToRemoveCount = Math.min(lastAddedRowsCount, asnGridData.length);
+    
+    if (rowsToRemoveCount > 0) {
+      // Since new rows are added at the beginning, remove from the beginning
+      const newData = asnGridData.slice(rowsToRemoveCount);
+      setAsnGridData(newData);
+      setLastAddedRowsCount(0); // Reset the counter
+      alert(`Removed ${rowsToRemoveCount} recently added rows successfully!`);
+    } else {
+      alert('No rows to remove!');
+    }
   };
 
   // Function to save grid data
   const handleSaveASNGrid = () => {
-    console.log('Saving ASN Grid Data:', asnGridData);
-    alert('ASN data saved successfully!');
+    // Mark all rows as saved in database
+    const updatedData = asnGridData.map(row => ({
+      ...row,
+      isSaved: true,
+      UPDATE_TIME: new Date().toLocaleString() // Update the modification time
+    }));
+    
+    setAsnGridData(updatedData);
+    console.log('Saving ASN Grid Data:', updatedData);
+    alert('ASN data saved successfully! All records are now marked as saved in database.');
   };
 
   // Function to handle multi-cell paste from clipboard
@@ -385,40 +463,51 @@ const SimpleInbound = () => {
       const rows = text.trim().split('\n');
       const newData = [...asnGridData];
       
-      rows.forEach((row, rowIndex) => {
+      // Define column mapping for paste operations
+      const columnFields = [
+        'ASN_STATUS', 'CREATE_TIME', 'UPDATE_TIME', 'ASN_CODE', 'SUPPLIER', 'PO_NO',
+        'ITEM_CODE', 'ITEM_DESCRIPTION', 'ITEM_QTY_KG', 'UOM', 'ACTUAL_QTY',
+        'ITEM_WEIGHT_KG', 'PALLET_CONFIG', 'PALLET_ID', 'MFG_DATE', 'EXP_DATE',
+        'BATCH_NO', 'SHORTAGE_QTY', 'MORE_QTY', 'DAMAGE_QTY', 'ITEM_COST', 'GOODS_REMARKS'
+      ];
+      
+      // Determine starting position - use focused cell if available, otherwise start from beginning
+      const startRowIndex = focusedCell?.rowIndex || 0;
+      const startColumnIndex = focusedCell?.columnIndex || 0;
+      
+      rows.forEach((row, pasteRowIndex) => {
         const cells = row.split('\t'); // Excel/Google Sheets use tab-separated values
-        if (rowIndex < newData.length) {
-          // Map cells to the appropriate fields based on column order
-          const currentRow = newData[rowIndex];
-          if (cells[0]) currentRow.ASN_CODE = cells[0];
-          if (cells[1]) currentRow.ASN_STATUS = cells[1];
-          if (cells[2]) currentRow.SUPPLIER = cells[2];
-          if (cells[3]) currentRow.PO_NO = cells[3];
-          if (cells[4]) currentRow.CREATE_TIME = cells[4];
-          if (cells[5]) currentRow.UPDATE_TIME = cells[5];
-          if (cells[6]) currentRow.ITEM_CODE = cells[6];
-          if (cells[7]) currentRow.ITEM_DESCRIPTION = cells[7];
-          if (cells[8]) currentRow.ITEM_QTY_KG = parseFloat(cells[8]) || currentRow.ITEM_QTY_KG;
-          if (cells[9]) currentRow.UOM = cells[9];
-          if (cells[10]) currentRow.ACTUAL_QTY = parseFloat(cells[10]) || currentRow.ACTUAL_QTY;
-          if (cells[11]) currentRow.ITEM_WEIGHT_KG = parseFloat(cells[11]) || currentRow.ITEM_WEIGHT_KG;
-          if (cells[12]) currentRow.PALLET_CONFIG = cells[12];
-          if (cells[13]) currentRow.PALLET_ID = cells[13];
-          if (cells[14]) currentRow.MFG_DATE = cells[14];
-          if (cells[15]) currentRow.EXP_DATE = cells[15];
-          if (cells[16]) currentRow.BATCH_NO = cells[16];
-          if (cells[17]) currentRow.SORTED_QTY = parseFloat(cells[17]) || currentRow.SORTED_QTY;
-          if (cells[18]) currentRow.SHORTAGE_QTY = parseFloat(cells[18]) || currentRow.SHORTAGE_QTY;
-          if (cells[19]) currentRow.MORE_QTY = parseFloat(cells[19]) || currentRow.MORE_QTY;
-          if (cells[20]) currentRow.DAMAGE_QTY = parseFloat(cells[20]) || currentRow.DAMAGE_QTY;
-          if (cells[21]) currentRow.ITEM_VOLUME = parseFloat(cells[21]) || currentRow.ITEM_VOLUME;
-          if (cells[22]) currentRow.ITEM_COST = parseFloat(cells[22]) || currentRow.ITEM_COST;
-          if (cells[23]) currentRow.GOODS_REMARKS = cells[23];
+        const targetRowIndex = startRowIndex + pasteRowIndex;
+        
+        if (targetRowIndex < newData.length) {
+          const currentRow = newData[targetRowIndex];
+          
+          cells.forEach((cellValue, pasteCellIndex) => {
+            const targetColumnIndex = startColumnIndex + pasteCellIndex;
+            
+            if (targetColumnIndex < columnFields.length && cellValue.trim()) {
+              const fieldName = columnFields[targetColumnIndex];
+              
+              // Handle different field types
+              if (['ITEM_QTY_KG', 'ACTUAL_QTY', 'ITEM_WEIGHT_KG', 'SHORTAGE_QTY', 
+                   'MORE_QTY', 'DAMAGE_QTY', 'ITEM_COST'].includes(fieldName)) {
+                const numValue = parseFloat(cellValue);
+                if (!isNaN(numValue)) {
+                  (currentRow as any)[fieldName] = numValue;
+                }
+              } else {
+                (currentRow as any)[fieldName] = cellValue;
+              }
+            }
+          });
+          
+          // Mark row as unsaved since it has been modified with pasted data
+          currentRow.isSaved = false;
         }
       });
       
       setAsnGridData(newData);
-      alert(`Pasted ${rows.length} rows successfully!`);
+      alert(`Pasted ${rows.length} rows starting from ${focusedCell ? `row ${startRowIndex + 1}, column ${startColumnIndex + 1}` : 'beginning'}!`);
     } catch (err) {
       console.error('Failed to read clipboard:', err);
       alert('Please copy data from Excel/Google Sheets first');
@@ -427,31 +516,109 @@ const SimpleInbound = () => {
 
   // Function to handle keyboard shortcuts
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Only handle keyboard shortcuts if the event is not from an input field
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+      return;
+    }
+    
     if (e.ctrlKey && e.key === 'v') {
       e.preventDefault();
       handlePaste();
     }
   };
 
-  // Filter data based on status
+  // Filter data based on status and search query
   const filteredData = asnGridData.filter(row => {
-    if (showOnlyDrafts) return row.ASN_STATUS === 'Draft';
-    if (statusFilter === 'all') return true;
-    return row.ASN_STATUS === statusFilter;
+    // Status filter
+    const statusMatch = showOnlyDrafts ? row.ASN_STATUS === 'Draft' : 
+                       statusFilter === 'all' ? true : row.ASN_STATUS === statusFilter;
+    
+    // Search filter
+    const searchMatch = searchQuery.length === 0 || 
+                       Object.values(row).some(value => 
+                         value && typeof value === 'string' && 
+                         value.toLowerCase().includes(searchQuery.toLowerCase())
+                       );
+    
+    return statusMatch && searchMatch;
   });
 
+  // Helper function to update a row and mark it as unsaved
+  const updateRowField = (originalIndex: number, field: string, value: any) => {
+    const newData = [...asnGridData];
+    newData[originalIndex] = { 
+      ...newData[originalIndex], 
+      [field]: value,
+      isSaved: false, // Mark as unsaved when edited
+      UPDATE_TIME: new Date().toLocaleString() // Update timestamp
+    };
+    setAsnGridData(newData);
+  };
+
   // Toggle row selection
-  const toggleRowSelection = (id: number) => {
+  const toggleRowSelection = (palletIdOrTempId: string, rowIndex?: number) => {
+    // Use combination of PALLET_ID/tempId and row index for unique identification
+    // since multiple rows can now share the same ASN_CODE
+    const identifier = `${palletIdOrTempId || 'temp'}-${rowIndex}`;
     setSelectedRows(prev => 
-      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
+      prev.includes(identifier) ? prev.filter(code => code !== identifier) : [...prev, identifier]
     );
+  };
+
+  // Search functionality
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    if (query.length > 0) {
+      // Generate search suggestions from all data fields
+      const suggestions = new Set<string>();
+      asnGridData.forEach(row => {
+        Object.values(row).forEach(value => {
+          if (value && typeof value === 'string' && value.toLowerCase().includes(query.toLowerCase())) {
+            suggestions.add(value);
+          }
+        });
+      });
+      setSearchSuggestions(Array.from(suggestions).slice(0, 10));
+      setShowSuggestions(true);
+    } else {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  // Handle suggestion selection
+  const selectSuggestion = (suggestion: string) => {
+    setSearchQuery(suggestion);
+    setShowSuggestions(false);
+  };
+
+  // Delete selected rows
+  const handleDeleteSelected = () => {
+    if (selectedRows.length === 0) return;
+    
+    const newData = asnGridData.filter((row, index) => {
+      const rowIdentifier = `${row.ASN_CODE || 'temp'}-${index}`;
+      return !selectedRows.includes(rowIdentifier);
+    });
+    
+    setAsnGridData(newData);
+    setSelectedRows([]);
+    alert(`Deleted ${selectedRows.length} selected rows successfully!`);
   };
 
   // Bulk operations for selected rows
   const handleBulkConfirm = () => {
     const newData = [...asnGridData];
-    selectedRows.forEach(id => {
-      const rowIndex = newData.findIndex(row => row.ID === id);
+    selectedRows.forEach(asnCode => {
+      const rowIndex = newData.findIndex(row => row.ASN_CODE === asnCode);
       if (rowIndex !== -1 && newData[rowIndex].ASN_STATUS === 'Draft') {
         newData[rowIndex] = { ...newData[rowIndex], ASN_STATUS: 'In Progress', UPDATE_TIME: new Date().toISOString().slice(0, 19).replace('T', ' ') };
       }
@@ -462,7 +629,7 @@ const SimpleInbound = () => {
   };
 
   const handleBulkDelete = () => {
-    const newData = asnGridData.filter(row => !selectedRows.includes(row.ID || 0));
+    const newData = asnGridData.filter(row => !selectedRows.includes(row.ASN_CODE || ''));
     setAsnGridData(newData);
     setSelectedRows([]);
     alert(`Deleted ${selectedRows.length} rows successfully!`);
@@ -497,30 +664,159 @@ const SimpleInbound = () => {
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6" gutterBottom>ASN Management - Custom Excel-like Table</Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button 
-                  variant="contained" 
-                  color="primary"
-                  startIcon={<Add />}
-                  onClick={handleAddRows}
-                >
-                  Add Rows
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  color="success"
-                  onClick={handlePaste}
-                >
-                  Paste from Excel
-                </Button>
-                <Button 
-                  variant="contained" 
-                  color="success"
-                  onClick={handleSaveASNGrid}
-                >
-                  Save ASNs
-                </Button>
+            </Box>
+            
+            {/* Default Values for New Rows */}
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', minWidth: '120px' }}>
+                Default Values:
+              </Typography>
+              <Autocomplete
+                size="small"
+                options={suppliers}
+                getOptionLabel={(option) => option.supplier_name}
+                value={suppliers.find(s => s.supplier_name === defaultSupplier) || null}
+                onChange={(event, newValue) => {
+                  setDefaultSupplier(newValue ? newValue.supplier_name : '');
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Default Supplier" sx={{ minWidth: '200px' }} />
+                )}
+                sx={{ minWidth: '250px' }}
+              />
+              <TextField
+                size="small"
+                label="Default PO Number"
+                value={defaultPONumber}
+                onChange={(e) => setDefaultPONumber(e.target.value)}
+                sx={{ minWidth: '200px' }}
+                placeholder="e.g., PO-20251119-001"
+              />
+              <Typography variant="caption" sx={{ color: 'text.secondary', maxWidth: '300px' }}>
+                These values will be automatically filled for all new rows added
+              </Typography>
+            </Box>
+            
+            {/* Search Bar and Action Controls */}
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Search Bar with Autocomplete */}
+              <Box sx={{ position: 'relative', minWidth: '300px' }}>
+                <TextField
+                  label="Search ASN Records"
+                  size="small"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchQuery && (
+                      <InputAdornment position="end">
+                        <IconButton onClick={clearSearch} size="small">
+                          <Clear />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ minWidth: '300px' }}
+                />
+                {showSuggestions && searchSuggestions.length > 0 && (
+                  <Paper
+                    sx={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 1000,
+                      maxHeight: '200px',
+                      overflow: 'auto'
+                    }}
+                  >
+                    {searchSuggestions.map((suggestion, index) => (
+                      <Button
+                        key={index}
+                        onClick={() => selectSuggestion(suggestion)}
+                        sx={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          borderRadius: 0,
+                          justifyContent: 'flex-start',
+                          textTransform: 'none'
+                        }}
+                      >
+                        {suggestion}
+                      </Button>
+                    ))}
+                  </Paper>
+                )}
               </Box>
+
+              {/* Conditional Action Dropdown or Add/Remove Buttons */}
+              {selectedRows.length > 0 ? (
+                <FormControl size="small" sx={{ minWidth: '120px' }}>
+                  <InputLabel>Action</InputLabel>
+                  <Select
+                    label="Action"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value === 'delete') {
+                        handleDeleteSelected();
+                      }
+                    }}
+                  >
+                    <MenuItem value="delete">
+                      <Delete sx={{ mr: 1 }} />
+                      Delete Selected ({selectedRows.length})
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+              ) : (
+                <>
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={rowsToAdd}
+                    onChange={(e) => setRowsToAdd(Math.max(1, parseInt(e.target.value) || 1))}
+                    inputProps={{ min: 1, max: 50, style: { width: '60px' } }}
+                    sx={{ width: '80px' }}
+                  />
+                  <Button 
+                    variant="contained" 
+                    color="primary"
+                    startIcon={<Add />}
+                    onClick={handleAddRows}
+                  >
+                    Add Rows
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    color="error"
+                    startIcon={<Delete />}
+                    onClick={handleRemoveRows}
+                    disabled={lastAddedRowsCount === 0}
+                  >
+                    Remove Last {lastAddedRowsCount} Row{lastAddedRowsCount !== 1 ? 's' : ''}
+                  </Button>
+                </>
+              )}
+
+              <Button 
+                variant="outlined" 
+                color="success"
+                onClick={handlePaste}
+              >
+                Paste from Excel
+              </Button>
+              <Button 
+                variant="contained" 
+                color="success"
+                onClick={handleSaveASNGrid}
+              >
+                Save ASNs
+              </Button>
             </Box>
             
             <Alert severity="success" sx={{ mb: 2 }}>
@@ -570,17 +866,16 @@ const SimpleInbound = () => {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '40px' }}>☑</th>
-                    <th>ID</th>
-                    <th>ASN Code</th>
+                    <th style={{ width: '70px' }}>☑💾</th>
                     <th>ASN Status</th>
-                    <th>Supplier</th>
-                    <th>PO No</th>
                     <th>Create Time</th>
                     <th>Update Time</th>
+                    <th>ASN Code</th>
+                    <th>Supplier</th>
+                    <th>PO No</th>
                     <th>Item Code</th>
                     <th>Item Description</th>
-                    <th>Item Qty (KG)</th>
+                    <th>Item Qty</th>
                     <th>UOM</th>
                     <th>Actual Qty</th>
                     <th>Item Weight (KG)</th>
@@ -589,11 +884,9 @@ const SimpleInbound = () => {
                     <th>MFG Date</th>
                     <th>EXP Date</th>
                     <th>Batch No</th>
-                    <th>Sorted Qty</th>
                     <th>Shortage Qty</th>
                     <th>More Qty</th>
                     <th>Damage Qty</th>
-                    <th>Item Volume</th>
                     <th>Item Cost</th>
                     <th>Goods Remarks</th>
                   </tr>
@@ -601,49 +894,50 @@ const SimpleInbound = () => {
                 <tbody>
                   {filteredData.map((row, filteredIndex) => {
                     // Find the original index in asnGridData for state updates
-                    const originalIndex = asnGridData.findIndex(originalRow => originalRow.ID === row.ID);
+                    // Use PALLET_ID as unique identifier since ASN_CODE can be duplicated
+                    const originalIndex = asnGridData.findIndex(originalRow => 
+                      originalRow.PALLET_ID === row.PALLET_ID ||
+                      (originalRow._tempId && originalRow._tempId === row._tempId) ||
+                      (originalRow === row) // Fallback for exact object match
+                    );
+                    
                     const isDraft = row.ASN_STATUS === 'Draft';
-                    const isSelected = selectedRows.includes(row.ID || 0);
+                    const rowIdentifier = `${row.PALLET_ID || row._tempId || 'temp'}-${originalIndex}`;
+                    const isSelected = selectedRows.includes(rowIdentifier);
                     const bgColor = isSelected ? '#e3f2fd' : 
                                    isDraft ? '#fff3e0' : 
                                    filteredIndex % 2 === 0 ? '#fafafa' : 'white';
                     
                     return (
-                      <tr key={row.ID} style={{ 
+                      <tr key={rowIdentifier} style={{ 
                         backgroundColor: bgColor,
                         borderLeft: isDraft ? '4px solid #ff9800' : 
                                    row.ASN_STATUS === 'Complete' ? '4px solid #4caf50' : 
                                    '4px solid transparent'
                       }}>
-                        {/* Selection Checkbox */}
-                        <td>
+                        {/* Selection Checkbox with Save Status */}
+                        <td style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <input 
                             type="checkbox" 
                             checked={isSelected}
-                            onChange={() => toggleRowSelection(row.ID || 0)}
+                            onChange={() => toggleRowSelection(row.PALLET_ID || row._tempId || '', originalIndex)}
                             style={{ cursor: 'pointer' }}
                           />
+                          <span 
+                            style={{ 
+                              fontSize: '12px', 
+                              color: row.isSaved ? '#4caf50' : '#ff9800',
+                              fontWeight: 'bold'
+                            }}
+                            title={row.isSaved ? 'Saved to database' : 'Not yet saved'}
+                          >
+                            {row.isSaved ? '✓' : '●'}
+                          </span>
                         </td>
-                      {/* ID */}
-                      <td><input type="number" value={row.ID || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ID: parseInt(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
-                      
-                      {/* ASN Code */}
-                      <td><input type="text" value={row.ASN_CODE || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ASN_CODE: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
-                      
                       {/* ASN Status */}
                       <td><select value={row.ASN_STATUS || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ASN_STATUS: e.target.value };
-                        setAsnGridData(newData);
-                      }} style={{ width: '100%', border: 'none', padding: '2px' }}>
+                        updateRowField(originalIndex, 'ASN_STATUS', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 0})} style={{ width: '100%', border: 'none', padding: '2px' }}>
                         <option value="">-</option>
                         <option value="Draft">Draft</option>
                         <option value="In Progress">In Progress</option>
@@ -652,61 +946,50 @@ const SimpleInbound = () => {
                         <option value="On Hold">On Hold</option>
                       </select></td>
                       
-                      {/* Supplier */}
-                      <td><input type="text" value={row.SUPPLIER || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, SUPPLIER: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
-                      
-                      {/* PO No */}
-                      <td><input type="text" value={row.PO_NO || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, PO_NO: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
-                      
                       {/* Create Time */}
                       <td><input type="text" value={row.CREATE_TIME || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, CREATE_TIME: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'CREATE_TIME', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 1})} /></td>
                       
                       {/* Update Time */}
                       <td><input type="text" value={row.UPDATE_TIME || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, UPDATE_TIME: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'UPDATE_TIME', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 2})} /></td>
+                      
+                      {/* ASN Code */}
+                      <td><input type="text" value={row.ASN_CODE || ''} onChange={(e) => {
+                        updateRowField(originalIndex, 'ASN_CODE', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 3})} /></td>
+                      
+                      {/* Supplier */}
+                      <td><input type="text" value={row.SUPPLIER || ''} onChange={(e) => {
+                        updateRowField(originalIndex, 'SUPPLIER', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 4})} /></td>
+                      
+                      {/* PO No */}
+                      <td><input type="text" value={row.PO_NO || ''} onChange={(e) => {
+                        updateRowField(originalIndex, 'PO_NO', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 5})} /></td>
                       
                       {/* Item Code */}
                       <td><input type="text" value={row.ITEM_CODE || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ITEM_CODE: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'ITEM_CODE', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 6})} /></td>
                       
                       {/* Item Description */}
                       <td><input type="text" value={row.ITEM_DESCRIPTION || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ITEM_DESCRIPTION: e.target.value };
-                        setAsnGridData(newData);
+                        updateRowField(originalIndex, 'ITEM_DESCRIPTION', e.target.value);
                       }} /></td>
                       
                       {/* Item Qty (KG) */}
                       <td><input type="number" step="0.01" value={row.ITEM_QTY_KG || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ITEM_QTY_KG: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
+                        updateRowField(originalIndex, 'ITEM_QTY_KG', parseFloat(e.target.value) || 0);
                       }} /></td>
                       
                       {/* UOM */}
                       <td><select value={row.UOM || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, UOM: e.target.value };
-                        setAsnGridData(newData);
-                      }} style={{ width: '100%', border: 'none', padding: '2px' }}>
+                        updateRowField(originalIndex, 'UOM', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 9})} style={{ width: '100%', border: 'none', padding: '2px' }}>
                         <option value="">-</option>
                         <option value="KG">KG</option>
                         <option value="L">L</option>
@@ -717,101 +1000,63 @@ const SimpleInbound = () => {
                       
                       {/* Actual Qty */}
                       <td><input type="number" step="0.01" value={row.ACTUAL_QTY || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ACTUAL_QTY: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'ACTUAL_QTY', parseFloat(e.target.value) || 0);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 10})} /></td>
                       
                       {/* Item Weight (KG) */}
                       <td><input type="number" step="0.01" value={row.ITEM_WEIGHT_KG || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ITEM_WEIGHT_KG: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'ITEM_WEIGHT_KG', parseFloat(e.target.value) || 0);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 11})} /></td>
                       
                       {/* Pallet Config */}
                       <td><input type="text" value={row.PALLET_CONFIG || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, PALLET_CONFIG: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'PALLET_CONFIG', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 12})} /></td>
                       
                       {/* Pallet ID */}
                       <td><input type="text" value={row.PALLET_ID || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, PALLET_ID: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'PALLET_ID', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 13})} /></td>
                       
                       {/* MFG Date */}
                       <td><input type="date" value={row.MFG_DATE || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, MFG_DATE: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'MFG_DATE', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 14})} /></td>
                       
                       {/* EXP Date */}
                       <td><input type="date" value={row.EXP_DATE || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, EXP_DATE: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'EXP_DATE', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 15})} /></td>
                       
                       {/* Batch No */}
                       <td><input type="text" value={row.BATCH_NO || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, BATCH_NO: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
-                      
-                      {/* Sorted Qty */}
-                      <td><input type="number" step="0.01" value={row.SORTED_QTY || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, SORTED_QTY: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'BATCH_NO', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 16})} /></td>
                       
                       {/* Shortage Qty */}
                       <td><input type="number" step="0.01" value={row.SHORTAGE_QTY || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, SHORTAGE_QTY: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'SHORTAGE_QTY', parseFloat(e.target.value) || 0);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 17})} /></td>
                       
                       {/* More Qty */}
                       <td><input type="number" step="0.01" value={row.MORE_QTY || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, MORE_QTY: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'MORE_QTY', parseFloat(e.target.value) || 0);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 18})} /></td>
                       
                       {/* Damage Qty */}
                       <td><input type="number" step="0.01" value={row.DAMAGE_QTY || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, DAMAGE_QTY: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
-                      
-                      {/* Item Volume */}
-                      <td><input type="number" step="0.001" value={row.ITEM_VOLUME || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ITEM_VOLUME: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'DAMAGE_QTY', parseFloat(e.target.value) || 0);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 19})} /></td>
                       
                       {/* Item Cost */}
                       <td><input type="number" step="0.01" value={row.ITEM_COST || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, ITEM_COST: parseFloat(e.target.value) || 0 };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'ITEM_COST', parseFloat(e.target.value) || 0);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 20})} /></td>
                       
                       {/* Goods Remarks */}
                       <td><input type="text" value={row.GOODS_REMARKS || ''} onChange={(e) => {
-                        const newData = [...asnGridData];
-                        newData[originalIndex] = { ...row, GOODS_REMARKS: e.target.value };
-                        setAsnGridData(newData);
-                      }} /></td>
+                        updateRowField(originalIndex, 'GOODS_REMARKS', e.target.value);
+                      }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 21})} /></td>
                     </tr>
                     );
                   })}
@@ -820,31 +1065,6 @@ const SimpleInbound = () => {
             </Box>
           </CardContent>
         </Card>
-
-      {/* Add Rows Dialog */}
-      <Dialog open={showAddRowDialog} onClose={() => setShowAddRowDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Rows</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            New rows will be added at the top of the table with auto-generated ASN codes and unique pallet IDs.
-          </Typography>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Number of rows to add"
-            type="number"
-            fullWidth
-            value={rowsToAdd}
-            onChange={(e) => setRowsToAdd(Math.max(1, parseInt(e.target.value) || 1))}
-            inputProps={{ min: 1, max: 50 }}
-            helperText="Each row will get a unique pallet ID like PLT-202511191234567890"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAddRowDialog(false)}>Cancel</Button>
-          <Button onClick={confirmAddRows} variant="contained">Add Rows</Button>
-        </DialogActions>
-      </Dialog>
 
 
     </Box>
@@ -1435,7 +1655,6 @@ const SimpleSetup = () => {
 };
 
 interface ASNRow {
-  ID?: number;
   ASN_CODE?: string;
   ASN_STATUS?: string;
   SUPPLIER?: string;
@@ -1453,13 +1672,13 @@ interface ASNRow {
   MFG_DATE?: string;
   EXP_DATE?: string;
   BATCH_NO?: string;
-  SORTED_QTY?: number;
   SHORTAGE_QTY?: number;
   MORE_QTY?: number;
   DAMAGE_QTY?: number;
-  ITEM_VOLUME?: number;
   ITEM_COST?: number;
   GOODS_REMARKS?: string;
+  isSaved?: boolean; // Track if record is saved in database
+  _tempId?: string; // Temporary unique identifier for proper row indexing
 }
 
 function SimpleWMS() {
