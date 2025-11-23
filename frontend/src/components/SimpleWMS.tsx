@@ -202,7 +202,7 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
   const [focusedCell, setFocusedCell] = useState<{rowIndex: number, columnIndex: number} | null>(null);
   
   // Print preview state
-  const [printPreview, setPrintPreview] = useState<{visible: boolean, data: ASNRow | null}>({visible: false, data: null});
+  const [printPreview, setPrintPreview] = useState<{visible: boolean, data: ASNRow | null, type?: string}>({visible: false, data: null, type: 'asn'});
   
   // Putaway form state
   const [putawayForm, setPutawayForm] = useState<{visible: boolean, data: ASNRow | null, selectedBin: string, scannerActive: boolean}>({visible: false, data: null, selectedBin: '', scannerActive: false});
@@ -501,6 +501,7 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
   const [dnGridData, setDnGridData] = useState([
     {
       ID: 1,
+      dn_status: 'Allocate',
       dn_code: 'DN20251123001',
       dr_number: 'DR-2024-001',
       customer: 'Mercury Drug Corporation',
@@ -509,15 +510,13 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
       item_batch_no: 'BATCH-20251110-001',
       item_code: 'MED001',
       item_desc: 'Paracetamol 500mg Tablets',
-      item_qty: 1000,
-      pick_qty: 1000,
-      picked_qty: 1000,
+      item_uom: 'PCS',
       item_mfg_date: '2025-11-01',
       item_exp_date: '2027-11-01',
       item_remarks: 'Good quality',
-      intransit_qty: 1000,
-      delivery_actual_qty: 950,
-      delivery_shortage_qty: 50,
+      order_qty: 1000,
+      delivered: 950,
+      shortage: 50,
       delivery_more_qty: 0,
       delivery_damage_qty: 0,
       item_weight: 25.5,
@@ -531,25 +530,24 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
     },
     {
       ID: 2,
+      dn_status: 'Picked',
       dn_code: 'DN20251123002',
-      dr_number: 'DR-2024-002',
+      dr_number: '',
       customer: 'SM Supermarket',
       create_time: '2025-11-23 09:00:00',
       update_time: '2025-11-23 09:45:00',
       item_batch_no: 'BATCH-20251110-002',
       item_code: 'FOOD001',
       item_desc: 'Canned Sardines 155g',
-      item_qty: 500,
-      pick_qty: 500,
-      picked_qty: 480,
+      item_uom: 'CASE',
       item_mfg_date: '2025-11-05',
       item_exp_date: '2026-11-05',
       item_remarks: 'Premium quality',
-      intransit_qty: 480,
-      delivery_actual_qty: 480,
-      delivery_shortage_qty: 0,
-      delivery_more_qty: 0,
-      delivery_damage_qty: 20,
+      order_qty: 500,
+      delivered: 480,
+      shortage: 0,
+      excess: 0,
+      damage: 20,
       item_weight: 74.4,
       item_volume: 0.12,
       item_cost: 1440.00,
@@ -604,13 +602,11 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
             item_batch_no: batchItem.BATCH_NO || '',
             item_code: batchItem.ITEM_CODE || '',
             item_desc: batchItem.ITEM_DESCRIPTION || '',
-            item_qty: batchItem.ACTUAL_QTY || batchItem.ITEM_QTY_KG || 0,
-            pick_qty: 0,
-            picked_qty: 0,
+            item_uom: batchItem.UOM || 'PCS',
             item_mfg_date: batchItem.MFG_DATE || '',
             item_exp_date: batchItem.EXP_DATE || '',
             item_remarks: batchItem.GOODS_REMARKS || 'Auto-filled from batch selection',
-            in_transit: 0,
+            order_qty: batchItem.ACTUAL_QTY || batchItem.ITEM_QTY_KG || 0,
             delivered: 0,
             shortage: 0,
             excess: 0,
@@ -997,13 +993,19 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
   };
 
   // Print preview function
+  // Handle pick list print preview
+  const handlePickListPreview = (rowData: any) => {
+    setPrintPreview({visible: true, data: rowData, type: 'picklist'});
+  };
+
+  // Handle ASN print preview
   const handlePrintPreview = (rowData: ASNRow) => {
-    setPrintPreview({visible: true, data: rowData});
+    setPrintPreview({visible: true, data: rowData, type: 'asn'});
   };
 
   // Close print preview
   const closePrintPreview = () => {
-    setPrintPreview({visible: false, data: null});
+    setPrintPreview({visible: false, data: null, type: 'asn'});
   };
 
   // Print function
@@ -1669,6 +1671,7 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                     <th style={{ width: '70px' }}>☑💾</th>
                     {mode === 'outbound' ? (
                       <>
+                        <th>DN Status</th>
                         <th>DN Code</th>
                         <th>DR Number</th>
                         <th>Customer</th>
@@ -1677,13 +1680,11 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                         <th>Batch No</th>
                         <th>Item Code</th>
                         <th>Item Description</th>
-                        <th>Item Qty</th>
-                        <th>Pick Qty</th>
-                        <th>Picked Qty</th>
+                        <th>Item UOM</th>
                         <th>Mfg Date</th>
                         <th>Exp Date</th>
                         <th>Remarks</th>
-                        <th>In Transit</th>
+                        <th>Order Qty</th>
                         <th>Delivered</th>
                         <th>Shortage</th>
                         <th>Excess</th>
@@ -1738,7 +1739,12 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                     const isDraft = mode === 'outbound' ? false : row.ASN_STATUS === 'Draft';
                     const isReceiving = mode === 'outbound' ? false : row.ASN_STATUS === 'Receiving';
                     const isPutAway = mode === 'outbound' ? false : row.ASN_STATUS === 'PutAway';
-                    const isCompleted = mode === 'outbound' ? true : row.ASN_STATUS === 'Completed';
+                    const isCompleted = mode === 'outbound' ? row.dn_status === 'Complete' : row.ASN_STATUS === 'Completed';
+                    
+                    // Additional DN status checks for outbound
+                    const isAllocate = mode === 'outbound' ? row.dn_status === 'Allocate' : false;
+                    const isPicked = mode === 'outbound' ? row.dn_status === 'Picked' : false;
+                    const isShipped = mode === 'outbound' ? row.dn_status === 'Shipped' : false;
                     const rowIdentifier = mode === 'outbound' 
                       ? `${row.dn_code || 'temp'}-${originalIndex}`
                       : `${row.PALLET_ID || row._tempId || 'temp'}-${originalIndex}`;
@@ -1753,14 +1759,14 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                     }
                     
                     // Set border colors based on status
-                    if (isDraft) {
-                      borderStyle = '4px solid #ff9800'; // Orange border for Draft
-                    } else if (isReceiving) {
-                      borderStyle = '4px solid #2196f3'; // Blue border for Receiving
-                    } else if (isPutAway) {
-                      borderStyle = '4px solid #ffeb3b'; // Yellow border for PutAway
+                    if (isDraft || isAllocate) {
+                      borderStyle = '4px solid #ff9800'; // Orange border for Draft/Allocate
+                    } else if (isReceiving || isPicked) {
+                      borderStyle = '4px solid #2196f3'; // Blue border for Receiving/Picked
+                    } else if (isPutAway || isShipped) {
+                      borderStyle = '4px solid #ffeb3b'; // Yellow border for PutAway/Shipped
                     } else if (isCompleted) {
-                      borderStyle = '4px solid #4caf50'; // Green border for Completed
+                      borderStyle = '4px solid #4caf50'; // Green border for Completed/Complete
                     }
                     
                     return (
@@ -1790,19 +1796,21 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                             style={{
                               background: 'none',
                               border: 'none',
-                              cursor: row.ASN_STATUS === 'Receiving' ? 'pointer' : 'not-allowed',
-                              color: row.ASN_STATUS === 'Receiving' ? '#1976d2' : '#ccc',
+                              cursor: mode === 'outbound' && row.dn_status === 'Allocate' ? 'pointer' : (row.ASN_STATUS === 'Receiving' ? 'pointer' : 'not-allowed'),
+                              color: mode === 'outbound' && row.dn_status === 'Allocate' ? '#1976d2' : (row.ASN_STATUS === 'Receiving' ? '#1976d2' : '#ccc'),
                               fontSize: '14px',
                               padding: '2px',
-                              opacity: row.ASN_STATUS === 'Receiving' ? 1 : 0.5
+                              opacity: mode === 'outbound' && row.dn_status === 'Allocate' ? 1 : (row.ASN_STATUS === 'Receiving' ? 1 : 0.5)
                             }}
-                            disabled={row.ASN_STATUS !== 'Receiving'}
+                            disabled={!(mode === 'outbound' && row.dn_status === 'Allocate') && row.ASN_STATUS !== 'Receiving'}
                             onClick={() => {
-                              if (row.ASN_STATUS === 'Receiving') {
+                              if (mode === 'outbound' && row.dn_status === 'Allocate') {
+                                handlePickListPreview(row);
+                              } else if (row.ASN_STATUS === 'Receiving') {
                                 handlePrintPreview(row);
                               }
                             }}
-                            title={row.ASN_STATUS === 'Receiving' ? 'Print ASN' : 'Print only available for Receiving status'}
+                            title={mode === 'outbound' && row.dn_status === 'Allocate' ? 'Print Pick List' : (row.ASN_STATUS === 'Receiving' ? 'Print ASN' : 'Print only available for specific status')}
                           >
                             🖨️
                           </button>
@@ -1852,30 +1860,40 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                       
                       {mode === 'outbound' ? (
                         <>
+                          {/* DN Status */}
+                          <td><select value={row.dn_status || 'Allocate'} onChange={(e) => {
+                            updateRowField(originalIndex, 'dn_status', e.target.value);
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 1})} style={{ width: '100%', border: 'none', padding: '2px' }}>
+                            <option value="Allocate">Allocate</option>
+                            <option value="Picked">Picked</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Complete">Complete</option>
+                          </select></td>
+                          
                           {/* DN Code */}
                           <td><input type="text" value={row.dn_code || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'dn_code', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 1})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 2})} /></td>
                           
                           {/* DR Number */}
                           <td><input type="text" value={row.dr_number || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'dr_number', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 2})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 3})} /></td>
                           
                           {/* Customer */}
                           <td><input type="text" value={row.customer || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'customer', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 3})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 4})} /></td>
                           
                           {/* Create Time */}
                           <td><input type="text" value={row.create_time || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'create_time', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 4})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 5})} /></td>
                           
                           {/* Update Time */}
                           <td><input type="text" value={row.update_time || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'update_time', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 5})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 6})} /></td>
                         </>
                       ) : (
                         <>
@@ -1907,107 +1925,104 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                           {/* Batch No */}
                           <td><input type="text" value={row.item_batch_no || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_batch_no', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 6})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 7})} /></td>
                           
                           {/* Item Code */}
                           <td><input type="text" value={row.item_code || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_code', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 7})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 8})} /></td>
                           
                           {/* Item Description */}
                           <td><input type="text" value={row.item_desc || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_desc', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 8})} /></td>
-                          
-                          {/* Item Qty */}
-                          <td><input type="number" step="0.01" value={row.item_qty || ''} onChange={(e) => {
-                            updateRowField(originalIndex, 'item_qty', parseFloat(e.target.value) || 0);
                           }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 9})} /></td>
                           
-                          {/* Pick Qty */}
-                          <td><input type="number" step="0.01" value={row.pick_qty || ''} onChange={(e) => {
-                            updateRowField(originalIndex, 'pick_qty', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 10})} /></td>
-                          
-                          {/* Picked Qty */}
-                          <td><input type="number" step="0.01" value={row.picked_qty || ''} onChange={(e) => {
-                            updateRowField(originalIndex, 'picked_qty', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 11})} /></td>
+                          {/* Item UOM */}
+                          <td><select value={row.item_uom || ''} onChange={(e) => {
+                            updateRowField(originalIndex, 'item_uom', e.target.value);
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 10})} style={{ width: '100%', border: 'none', padding: '2px' }}>
+                            <option value="">-</option>
+                            <option value="KG">KG</option>
+                            <option value="L">L</option>
+                            <option value="PCS">PCS</option>
+                            <option value="BOX">BOX</option>
+                            <option value="CASE">CASE</option>
+                          </select></td>
                           
                           {/* Mfg Date */}
                           <td><input type="date" value={row.item_mfg_date || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_mfg_date', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 12})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 11})} /></td>
                           
                           {/* Exp Date */}
                           <td><input type="date" value={row.item_exp_date || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_exp_date', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 13})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 12})} /></td>
                           
                           {/* Remarks */}
                           <td><input type="text" value={row.item_remarks || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_remarks', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 14})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 13})} /></td>
                           
-                          {/* In Transit */}
-                          <td><input type="number" step="0.01" value={row.in_transit || ''} onChange={(e) => {
-                            updateRowField(originalIndex, 'in_transit', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 15})} /></td>
+                          {/* Order Qty */}
+                          <td><input type="number" step="0.01" value={row.order_qty || ''} onChange={(e) => {
+                            updateRowField(originalIndex, 'order_qty', parseFloat(e.target.value) || 0);
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 14})} /></td>
                           
                           {/* Delivered */}
                           <td><input type="number" step="0.01" value={row.delivered || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'delivered', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 16})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 15})} /></td>
                           
                           {/* Shortage */}
                           <td><input type="number" step="0.01" value={row.shortage || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'shortage', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 17})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 16})} /></td>
                           
                           {/* Excess */}
                           <td><input type="number" step="0.01" value={row.excess || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'excess', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 18})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 17})} /></td>
                           
                           {/* Damage */}
                           <td><input type="number" step="0.01" value={row.damage || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'damage', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 19})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 18})} /></td>
                           
                           {/* Weight (kg) */}
                           <td><input type="number" step="0.01" value={row.item_weight || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_weight', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 20})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 19})} /></td>
                           
                           {/* Volume (m³) */}
                           <td><input type="number" step="0.01" value={row.item_volume || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_volume', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 21})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 20})} /></td>
                           
                           {/* Cost */}
                           <td><input type="number" step="0.01" value={row.item_cost || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'item_cost', parseFloat(e.target.value) || 0);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 22})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 21})} /></td>
                           
                           {/* Driver */}
                           <td><input type="text" value={row.driver || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'driver', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 23})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 22})} /></td>
                           
                           {/* Plate No */}
                           <td><input type="text" value={row.plate_no || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'plate_no', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 24})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 23})} /></td>
                           
                           {/* Route */}
                           <td><input type="text" value={row.route || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'route', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 25})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 24})} /></td>
                           
                           {/* Trucker */}
                           <td><input type="text" value={row.trucker || ''} onChange={(e) => {
                             updateRowField(originalIndex, 'trucker', e.target.value);
-                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 26})} /></td>
+                          }} onFocus={() => setFocusedCell({rowIndex: originalIndex, columnIndex: 25})} /></td>
                         </>
                       ) : (
                         <>
@@ -2148,7 +2163,7 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
             }}>
               {/* Print Preview Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ margin: 0 }}>Print Preview</h2>
+                <h2 style={{ margin: 0 }}>{printPreview.type === 'picklist' ? 'Pick List Preview' : 'Print Preview'}</h2>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button 
                     onClick={handlePrint}
@@ -2184,11 +2199,139 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                 fontFamily: 'Arial, sans-serif',
                 lineHeight: '1.4'
               }}>
-                {/* Document Title */}
-                <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
-                  <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold' }}>ADVANCE SHIP NOTICE (ASN)</h1>
-                  <div style={{ fontSize: '16px', color: '#666' }}>Receiving Document</div>
-                </div>
+                {printPreview.type === 'picklist' ? (
+                  /* Pick List Document */
+                  <>
+                    {/* Document Title */}
+                    <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
+                      <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold' }}>PICK LIST</h1>
+                      <div style={{ fontSize: '16px', color: '#666' }}>Warehouse Picking Document</div>
+                    </div>
+
+                    {/* Pick List Header Information */}
+                    <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div style={{ flex: 1 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <tr>
+                            <td style={{ padding: '8px 0', fontWeight: 'bold', width: '120px' }}>DN Code:</td>
+                            <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd' }}>{printPreview.data.dn_code || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Customer:</td>
+                            <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd' }}>{printPreview.data.customer || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Batch No:</td>
+                            <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd' }}>{printPreview.data.item_batch_no || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Status:</td>
+                            <td style={{ padding: '8px 0', borderBottom: '1px solid #ddd', color: '#2196f3', fontWeight: 'bold' }}>{printPreview.data.dn_status || 'N/A'}</td>
+                          </tr>
+                        </table>
+                      </div>
+                      <div style={{ marginLeft: '30px', textAlign: 'right' }}>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Print Date: {new Date().toLocaleString()}</div>
+                        <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>Create Time: {printPreview.data.create_time || 'N/A'}</div>
+                      </div>
+                    </div>
+
+                    {/* Item Details */}
+                    <div style={{ marginBottom: '30px' }}>
+                      <h3 style={{ margin: '0 0 15px 0', fontSize: '18px', color: '#333' }}>Item Details</h3>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', border: '1px solid #ddd' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#f5f5f5' }}>
+                            <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Item Code</th>
+                            <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Description</th>
+                            <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Order Qty</th>
+                            <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Weight (kg)</th>
+                            <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Picker</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td style={{ padding: '12px', border: '1px solid #ddd' }}>{printPreview.data.item_code || 'N/A'}</td>
+                            <td style={{ padding: '12px', border: '1px solid #ddd' }}>{printPreview.data.item_desc || 'N/A'}</td>
+                            <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>{printPreview.data.order_qty || 0}</td>
+                            <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>{printPreview.data.item_weight || 0}</td>
+                            <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>_______________</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Dates and Quality Info */}
+                    <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ flex: 1, marginRight: '20px' }}>
+                        <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#333' }}>Product Information</h4>
+                        <table style={{ width: '100%', fontSize: '12px' }}>
+                          <tr>
+                            <td style={{ padding: '4px 0', fontWeight: 'bold' }}>Mfg Date:</td>
+                            <td style={{ padding: '4px 0' }}>{printPreview.data.item_mfg_date || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '4px 0', fontWeight: 'bold' }}>Exp Date:</td>
+                            <td style={{ padding: '4px 0' }}>{printPreview.data.item_exp_date || 'N/A'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '4px 0', fontWeight: 'bold' }}>Remarks:</td>
+                            <td style={{ padding: '4px 0' }}>{printPreview.data.item_remarks || 'N/A'}</td>
+                          </tr>
+                        </table>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#333' }}>Logistics Information</h4>
+                        <table style={{ width: '100%', fontSize: '12px' }}>
+                          <tr>
+                            <td style={{ padding: '4px 0', fontWeight: 'bold' }}>Driver:</td>
+                            <td style={{ padding: '4px 0' }}>{printPreview.data.driver || '_____________'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '4px 0', fontWeight: 'bold' }}>Plate No:</td>
+                            <td style={{ padding: '4px 0' }}>{printPreview.data.plate_no || '_____________'}</td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '4px 0', fontWeight: 'bold' }}>Route:</td>
+                            <td style={{ padding: '4px 0' }}>{printPreview.data.route || '_____________'}</td>
+                          </tr>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Signature Section */}
+                    <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ textAlign: 'center', width: '200px' }}>
+                        <div style={{ borderBottom: '1px solid #000', height: '40px', marginBottom: '5px' }}></div>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold' }}>Picker Signature</div>
+                        <div style={{ fontSize: '10px', color: '#666' }}>Date: ___________</div>
+                      </div>
+                      <div style={{ textAlign: 'center', width: '200px' }}>
+                        <div style={{ borderBottom: '1px solid #000', height: '40px', marginBottom: '5px' }}></div>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold' }}>Supervisor Signature</div>
+                        <div style={{ fontSize: '10px', color: '#666' }}>Date: ___________</div>
+                      </div>
+                      <div style={{ textAlign: 'center', width: '200px' }}>
+                        <div style={{ borderBottom: '1px solid #000', height: '40px', marginBottom: '5px' }}></div>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold' }}>QC Signature</div>
+                        <div style={{ fontSize: '10px', color: '#666' }}>Date: ___________</div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '10px', color: '#666', borderTop: '1px solid #ddd', paddingTop: '10px' }}>
+                      <div>This is a system-generated pick list. Please verify all items and quantities before shipping.</div>
+                      <div style={{ marginTop: '5px' }}>DN Code: {printPreview.data.dn_code} | Customer: {printPreview.data.customer}</div>
+                    </div>
+                  </>
+                ) : (
+                  /* Original ASN Document */
+                  <>
+                    {/* Document Title */}
+                    <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
+                      <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', fontWeight: 'bold' }}>ADVANCE SHIP NOTICE (ASN)</h1>
+                      <div style={{ fontSize: '16px', color: '#666' }}>Receiving Document</div>
+                    </div>
 
                 {/* ASN Header Information */}
                 <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
@@ -2267,13 +2410,15 @@ const SimpleInbound = ({ mode = 'inbound' }: { mode?: 'inbound' | 'outbound' }) 
                       <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>Date & Time</div>
                     </div>
                   </div>
-                </div>
 
-                {/* Footer */}
-                <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '10px', color: '#666' }}>
-                  <p>This document serves as proof of receipt for the above mentioned items.</p>
-                  <p>Please ensure all items are inspected before signing.</p>
+                  {/* Footer */}
+                  <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '10px', color: '#666' }}>
+                    <p>This document serves as proof of receipt for the above mentioned items.</p>
+                    <p>Please ensure all items are inspected before signing.</p>
+                  </div>
                 </div>
+              </>
+              )}
               </div>
             </div>
           </div>
